@@ -1,0 +1,130 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* โทนอบอุ่น: กุหลาบ + ครีม */
+:root {
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.006 20);
+  --foreground: oklch(0.24 0.02 15);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.02 15);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.02 15);
+  --primary: oklch(0.62 0.17 12);
+  --primary-foreground: oklch(0.99 0.005 15);
+  --secondary: oklch(0.95 0.025 20);
+  --secondary-foreground: oklch(0.35 0.06 15);
+  --muted: oklch(0.96 0.01 20);
+  --muted-foreground: oklch(0.52 0.025 15);
+  --accent: oklch(0.94 0.035 15);
+  --accent-foreground: oklch(0.35 0.08 12);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.91 0.015 20);
+  --input: oklch(0.91 0.015 20);
+  --ring: oklch(0.62 0.17 12);
+}
+
+.dark {
+  --background: oklch(0.18 0.015 15);
+  --foreground: oklch(0.96 0.01 20);
+  --card: oklch(0.22 0.018 15);
+  --card-foreground: oklch(0.96 0.01 20);
+  --popover: oklch(0.22 0.018 15);
+  --popover-foreground: oklch(0.96 0.01 20);
+  --primary: oklch(0.7 0.15 12);
+  --primary-foreground: oklch(0.18 0.015 15);
+  --secondary: oklch(0.28 0.025 15);
+  --secondary-foreground: oklch(0.96 0.01 20);
+  --muted: oklch(0.27 0.02 15);
+  --muted-foreground: oklch(0.72 0.02 15);
+  --accent: oklch(0.3 0.04 12);
+  --accent-foreground: oklch(0.96 0.01 20);
+  --destructive: oklch(0.65 0.2 27);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.7 0.15 12);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* iOS Safari: ช่องวันที่/เวลาแบบ native มีความกว้างขั้นต่ำของตัวเอง ทำให้ล้นกรอบและซ้อนกัน */
+@layer base {
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.25rem;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.5em;
+  }
+}
+
+/* ───── ธีมสำเร็จรูปต่อคู่ (ตั้งที่ wrapper ใน app/(app)/layout.tsx) ───── */
+.theme-cocoa {
+  --background: #faf6ef; --foreground: #2a2220; --card: #fffdf9; --card-foreground: #2a2220;
+  --popover: #fffdf9; --popover-foreground: #2a2220; --primary: #c8372f; --primary-foreground: #ffffff;
+  --secondary: #f1e9dd; --secondary-foreground: #4a3b33; --muted: #f3ece2; --muted-foreground: #7d6d62;
+  --accent: #f5e3d6; --accent-foreground: #6e2a22; --border: #e8dccd; --input: #e8dccd; --ring: #c8372f;
+}
+.theme-sunset {
+  --background: #fff7f1; --foreground: #3b2018; --card: #ffffff; --card-foreground: #3b2018;
+  --popover: #ffffff; --popover-foreground: #3b2018; --primary: #ee5f2a; --primary-foreground: #ffffff;
+  --secondary: #ffe8da; --secondary-foreground: #6b2e16; --muted: #fdf0e7; --muted-foreground: #8b6556;
+  --accent: #ffe1cf; --accent-foreground: #8a3414; --border: #f6dccd; --input: #f6dccd; --ring: #ee5f2a;
+}
+.theme-lavender {
+  --background: #f9f7fd; --foreground: #2b2540; --card: #ffffff; --card-foreground: #2b2540;
+  --popover: #ffffff; --popover-foreground: #2b2540; --primary: #7c5cd6; --primary-foreground: #ffffff;
+  --secondary: #ede8fb; --secondary-foreground: #43357a; --muted: #f2effa; --muted-foreground: #756c90;
+  --accent: #ebe4fb; --accent-foreground: #4b3a8c; --border: #e4def4; --input: #e4def4; --ring: #7c5cd6;
+}
+.theme-midnight {
+  color-scheme: dark;
+  --background: #16141f; --foreground: #f1eef8; --card: #201d2c; --card-foreground: #f1eef8;
+  --popover: #201d2c; --popover-foreground: #f1eef8; --primary: #f08aa3; --primary-foreground: #1b1420;
+  --secondary: #2b2738; --secondary-foreground: #f1eef8; --muted: #26222f; --muted-foreground: #a9a2bd;
+  --accent: #332b45; --accent-foreground: #f6e9f0; --destructive: #ff6b7d;
+  --border: rgb(255 255 255 / 10%); --input: rgb(255 255 255 / 16%); --ring: #f08aa3;
+}

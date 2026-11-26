@@ -1,0 +1,1 @@
+ALTER TABLE `couples` ADD `theme` text DEFAULT 'rose' NOT NULL;

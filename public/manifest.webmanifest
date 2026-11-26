@@ -1,0 +1,20 @@
+{
+  "name": "Duo · พื้นที่ของเราสองคน",
+  "short_name": "Duo",
+  "description": "ปฏิทิน รายการ เช็กอินประจำวัน และแผนของคู่รัก",
+  "lang": "th",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fdf7f7",
+  "theme_color": "#e0607e",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "เช็กอินวันนี้", "url": "/checkin" },
+    { "name": "เพิ่มนัด", "url": "/calendar" }
+  ]
+}
