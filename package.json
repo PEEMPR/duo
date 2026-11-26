@@ -44,6 +44,8 @@
 		"deploy": "vinext-cloudflare deploy",
 		"typecheck": "tsc --noEmit",
 		"db:generate": "drizzle-kit generate",
-		"cf-typegen": "cf workers types"
+		"cf-typegen": "cf workers types",
+		"push:keys": "node scripts/generate-vapid.mjs",
+		"ship": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1"
 	}
 }

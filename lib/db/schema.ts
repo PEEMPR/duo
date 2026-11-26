@@ -8,6 +8,9 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  character: text("character"), // ตัวละครที่เลือก (ดู lib/characters.ts)
+  notifyPrefs: text("notify_prefs").notNull().default("{}"), // JSON: เปิด/ปิดแจ้งเตือนแต่ละประเภท
+  checkinReminderTime: text("checkin_reminder_time").notNull().default("21:00"),
   createdAt: text("created_at").notNull().default(now),
 });
 
@@ -147,4 +150,52 @@ export const notes = sqliteTable(
     updatedAt: text("updated_at").notNull().default(now),
   },
   (t) => [index("notes_couple_idx").on(t.coupleId, t.updatedAt)],
+);
+
+/** อุปกรณ์ที่สมัครรับ Web Push (1 คนมีได้หลายเครื่อง) */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: text("created_at").notNull().default(now),
+    lastSuccessAt: text("last_success_at"),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+/** คิวแจ้งเตือนที่รอส่ง (cron มาหยิบไปส่งทุกนาที, รวบหลายเรื่องเป็นข้อความเดียว) */
+export const notificationOutbox = sqliteTable(
+  "notification_outbox",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    short: text("short"), // ข้อความสั้นสำหรับตอนรวบหลายเรื่อง
+    url: text("url").notNull().default("/dashboard"),
+    icon: text("icon"),
+    groupable: integer("groupable", { mode: "boolean" }).notNull().default(false),
+    deliverAfter: text("deliver_after").notNull(),
+    sentAt: text("sent_at"),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("notification_outbox_due_idx").on(t.sentAt, t.deliverAfter)],
+);
+
+/** กันแจ้งเตือนตามเวลาซ้ำ (เช่น เตือนเช็กอินวันละครั้ง) */
+export const notificationLog = sqliteTable(
+  "notification_log",
+  {
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    ref: text("ref").notNull(),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.ref] })],
 );

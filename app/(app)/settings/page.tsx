@@ -1,12 +1,19 @@
 import { headers } from "next/headers";
-import { Bot, Check, Heart, LogOut, Palette, RefreshCw, Smartphone, Users } from "lucide-react";
+import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
+import { Bell, Bot, Check, Heart, LogOut, Palette, PawPrint, RefreshCw, Smartphone, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { logoutAction, regenerateInviteAction, updateCoupleAction, updateThemeAction } from "@/app/actions";
+import { logoutAction, regenerateInviteAction, setCharacterAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
+import { PushSetup } from "@/components/push-setup";
+import { NativeSelect } from "@/components/ui/native-select";
+import { CHARACTERS } from "@/lib/characters";
+import { users } from "@/lib/db/schema";
+import { NOTIFY_KINDS, parsePrefs, REMINDER_TIMES } from "@/lib/notify";
 import { getCouple } from "@/lib/core";
 import { db, requireActor } from "@/lib/server";
 import { THEMES } from "@/lib/themes";
@@ -15,6 +22,9 @@ import { cn } from "@/lib/utils";
 export default async function SettingsPage() {
   const { actor, user } = await requireActor();
   const couple = await getCouple(db(), actor);
+  const me = (await db().select({ character: users.character, prefs: users.notifyPrefs, reminderAt: users.checkinReminderTime }).from(users).where(eq(users.id, user.id)).get())!;
+  const prefs = parsePrefs(me.prefs);
+  const vapidPublicKey = (env as { VAPID_PUBLIC_KEY?: string }).VAPID_PUBLIC_KEY ?? null;
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
 
@@ -23,12 +33,83 @@ export default async function SettingsPage() {
       <PageHeader title="ตั้งค่า" />
       <div className="grid gap-5 md:grid-cols-2">
         <Card>
+          <CardHeader className="flex-col">
+            <CardTitle><UserRound className="size-4 text-primary" /> โปรไฟล์ของฉัน</CardTitle>
+            <CardDescription>ชื่อนี้จะแสดงให้ {couple.partner?.name ?? "อีกฝ่าย"} เห็น ทั้งในแอป แจ้งเตือน และใน Claude</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={updateNameAction} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="displayName">ชื่อเล่น</Label>
+                <Input id="displayName" name="displayName" defaultValue={user.name} maxLength={40} required autoComplete="nickname" />
+              </div>
+              <p className="text-xs text-muted-foreground">อีเมลสำหรับล็อกอิน: {user.email}</p>
+              <SubmitButton variant="secondary">บันทึกชื่อ</SubmitButton>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle><Heart className="size-4 text-primary" /> พื้นที่ของเรา</CardTitle></CardHeader>
           <CardContent>
             <form action={updateCoupleAction} className="flex flex-col gap-3">
               <div className="flex flex-col gap-2"><Label htmlFor="name">ชื่อพื้นที่</Label><Input id="name" name="name" defaultValue={couple.name} /></div>
               <div className="flex flex-col gap-2"><Label htmlFor="anniversary">วันครบรอบ</Label><Input id="anniversary" name="anniversary" type="date" defaultValue={couple.anniversary ?? ""} /></div>
               <SubmitButton variant="secondary">บันทึก</SubmitButton>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader className="flex-col">
+            <CardTitle><PawPrint className="size-4 text-primary" /> ตัวละครของฉัน</CardTitle>
+            <CardDescription>ตัวที่จะไปโผล่และพูดแทนเราบนจอของ {couple.partner?.name ?? "อีกฝ่าย"} และเป็นไอคอนในแจ้งเตือน</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={setCharacterAction} className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+              {CHARACTERS.map((c) => {
+                const active = me.character === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    name="character"
+                    value={c.id}
+                    aria-pressed={active}
+                    className={cn("flex flex-col items-center gap-1 rounded-xl border p-2 text-sm transition-colors hover:border-primary", active && "border-primary bg-accent ring-2 ring-primary/30")}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/characters/${c.id}.svg`} alt="" className="size-20" />
+                    <span className="flex items-center gap-1 font-medium">{c.name}{active && <Check className="size-4 text-primary" />}</span>
+                  </button>
+                );
+              })}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader className="flex-col">
+            <CardTitle><Bell className="size-4 text-primary" /> การแจ้งเตือน</CardTitle>
+            <CardDescription>ต้องเปิดแยกในแต่ละเครื่อง · ช่วง 23:00–07:00 จะเก็บไว้ส่งตอนเช้า · ไม่โชว์เนื้อหาเช็กอินบนหน้าล็อก</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            <PushSetup vapidPublicKey={vapidPublicKey} />
+            <form action={updateNotifyPrefsAction} className="flex flex-col gap-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {NOTIFY_KINDS.map((k) => (
+                  <label key={k.id} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name={k.id} defaultChecked={prefs[k.id]} className="size-4 accent-primary" />
+                    {k.label}
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Label htmlFor="reminderTime">เตือนเช็กอินเวลา</Label>
+                <NativeSelect id="reminderTime" name="reminderTime" defaultValue={me.reminderAt} className="w-28">
+                  {REMINDER_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </NativeSelect>
+                <SubmitButton variant="secondary" size="sm" className="ml-auto">บันทึกการตั้งค่า</SubmitButton>
+              </div>
             </form>
           </CardContent>
         </Card>

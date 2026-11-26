@@ -1,4 +1,4 @@
-import { bindings, defineConfig, defineWorker } from "cf/config";
+import { bindings, defineConfig, defineWorker, triggers } from "cf/config";
 
 export default defineConfig({
   worker: defineWorker({
@@ -20,6 +20,10 @@ export default defineConfig({
       OAUTH_KV: bindings.kv(),
       // เขตเวลาที่ใช้ตัดวัน (เช็กอินรายวัน, "วันนี้")
       APP_TIMEZONE: bindings.text("Asia/Bangkok"),
+      // ผู้ติดต่อของ VAPID (Web Push) ส่วนคีย์ VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY ตั้งเป็น secret (ดู README)
+      VAPID_SUBJECT: bindings.text("https://couple-app.peem.workers.dev"),
     },
+    // cron ทุกนาที: สร้างแจ้งเตือนตามเวลา + ส่งแจ้งเตือนที่รอในคิว
+    triggers: [triggers.scheduled({ schedule: "* * * * *" })],
   }),
 });

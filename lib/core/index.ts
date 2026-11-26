@@ -8,6 +8,7 @@ import type { DB } from "../db";
 import { checkins, coupleMembers, couples, events, listItems, lists, milestones, notes, plans, users } from "../db/schema";
 import { newId, newInviteCode } from "../ids";
 import { isThemeId } from "../themes";
+import { notifyPartner } from "../notify";
 import { addDays, daysBetween, DEFAULT_TZ, isoToLocalYmd, localToIso, todayIn } from "../time";
 
 export type Actor = { userId: string; coupleId: string; tz?: string };
@@ -21,6 +22,15 @@ export class NotFoundError extends Error {
 const tzOf = (a: Actor) => a.tz || DEFAULT_TZ;
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "รูปแบบวันที่ต้องเป็น YYYY-MM-DD");
 const hm = z.string().regex(/^\d{2}:\d{2}$/, "รูปแบบเวลาต้องเป็น HH:MM");
+
+/** แจ้งอีกฝ่าย: ห้ามทำให้แอคชันหลักล้ม ถ้าระบบแจ้งเตือนมีปัญหา */
+async function safeNotify(db: DB, a: Actor, e: Parameters<typeof notifyPartner>[3]) {
+  try {
+    await notifyPartner(db, a.userId, tzOf(a), e);
+  } catch (err) {
+    console.warn("[notify] skipped:", (err as Error).message);
+  }
+}
 
 /* ───────────── Couple ───────────── */
 
@@ -133,6 +143,7 @@ export async function createEvent(db: DB, a: Actor, raw: z.input<typeof EventInp
     endAt,
     createdBy: a.userId,
   });
+  await safeNotify(db, a, { type: "event", title: input.title, startAt, allDay });
   return id;
 }
 
@@ -219,6 +230,9 @@ export async function addListItem(db: DB, a: Actor, input: { list: string; text:
     dueDate: input.dueDate || null,
     createdBy: a.userId,
   });
+  if (input.assigneeId && input.assigneeId !== a.userId) {
+    await safeNotify(db, a, { type: "assigned", assigneeId: input.assigneeId, text: input.text.trim().slice(0, 80), listName: list.name });
+  }
   return { id, listName: list.name };
 }
 
@@ -266,10 +280,12 @@ export async function submitCheckin(db: DB, a: Actor, raw: z.input<typeof Checki
   const input = CheckinInput.parse(raw);
   const date = todayIn(tzOf(a));
   const values = { mood: input.mood, energy: input.energy, gratitude: input.gratitude || null, need: input.need || null, note: input.note || null };
+  const existed = await db.select({ id: checkins.id }).from(checkins).where(and(eq(checkins.userId, a.userId), eq(checkins.date, date))).get();
   await db
     .insert(checkins)
     .values({ id: newId(), coupleId: a.coupleId, userId: a.userId, date, ...values })
     .onConflictDoUpdate({ target: [checkins.userId, checkins.date], set: values });
+  if (!existed) await safeNotify(db, a, { type: "checkin", date }); // แจ้งเฉพาะครั้งแรกของวัน ไม่แจ้งตอนแก้ไข
   return date;
 }
 

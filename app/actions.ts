@@ -6,6 +6,12 @@ import { revalidatePath } from "next/cache";
 import { createSession, deleteSession, SESSION_COOKIE, SESSION_DAYS, signIn, signUp } from "@/lib/auth";
 import * as core from "@/lib/core";
 import { db, requireActor, requireUser } from "@/lib/server";
+import { env } from "cloudflare:workers";
+import { and, eq } from "drizzle-orm";
+import { pushSubscriptions, users } from "@/lib/db/schema";
+import { isCharacterId } from "@/lib/characters";
+import { deliver, NOTIFY_KINDS, REMINDER_TIMES, vapidFrom, type PushEnv } from "@/lib/notify";
+import { newId } from "@/lib/ids";
 
 export type FormState = { error?: string; hardRedirect?: string } | undefined;
 
@@ -229,4 +235,69 @@ export async function deleteNoteAction(f: FormData) {
   const { actor } = await requireActor();
   await core.deleteNote(db(), actor, str(f, "id"));
   redirect("/notes");
+}
+
+/* ── โปรไฟล์ ── */
+
+export async function updateNameAction(f: FormData) {
+  const user = await requireUser();
+  const name = str(f, "displayName").replace(/\s+/g, " ").slice(0, 40);
+  if (name) await db().update(users).set({ name }).where(eq(users.id, user.id));
+  revalidatePath("/", "layout");
+}
+
+/* ── ตัวละคร ── */
+
+export async function setCharacterAction(f: FormData) {
+  const user = await requireUser();
+  const c = str(f, "character");
+  if (isCharacterId(c)) await db().update(users).set({ character: c }).where(eq(users.id, user.id));
+  revalidatePath("/", "layout");
+}
+
+/* ── แจ้งเตือน (Web Push) ── */
+
+type ClientSubscription = { endpoint: string; keys: { p256dh: string; auth: string } };
+
+export async function savePushSubscriptionAction(sub: ClientSubscription, userAgent: string) {
+  const user = await requireUser();
+  const ok = typeof sub?.endpoint === "string" && /^https:\/\//.test(sub.endpoint) && sub.keys?.p256dh && sub.keys?.auth;
+  if (!ok) return { error: "ข้อมูลอุปกรณ์ไม่ถูกต้อง" };
+  await db()
+    .insert(pushSubscriptions)
+    .values({ id: newId(), userId: user.id, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, userAgent: userAgent.slice(0, 200) })
+    .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { userId: user.id, p256dh: sub.keys.p256dh, auth: sub.keys.auth } });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function removePushSubscriptionAction(endpoint: string) {
+  const user = await requireUser();
+  await db().delete(pushSubscriptions).where(and(eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.userId, user.id)));
+  revalidatePath("/settings");
+}
+
+export async function sendTestPushAction() {
+  const user = await requireUser();
+  const vapid = vapidFrom(env as unknown as PushEnv);
+  if (!vapid) return { error: "ยังไม่ได้ตั้งค่าคีย์ VAPID" };
+  const sent = await deliver(db(), vapid, user.id, {
+    title: "💞 Duo ทดสอบแจ้งเตือน",
+    body: "ถ้าเห็นข้อความนี้ แปลว่าเครื่องนี้รับแจ้งเตือนได้แล้ว 🎉",
+    url: "/settings",
+    icon: "/icon-192.png",
+    tag: "test",
+  });
+  return sent ? { ok: true, sent } : { error: "ส่งไม่สำเร็จ ลองปิดแล้วเปิดการแจ้งเตือนบนเครื่องนี้ใหม่" };
+}
+
+export async function updateNotifyPrefsAction(f: FormData) {
+  const user = await requireUser();
+  const prefs = Object.fromEntries(NOTIFY_KINDS.map((k) => [k.id, f.get(k.id) === "on"]));
+  const time = str(f, "reminderTime");
+  await db()
+    .update(users)
+    .set({ notifyPrefs: JSON.stringify(prefs), ...(REMINDER_TIMES.includes(time as never) ? { checkinReminderTime: time } : {}) })
+    .where(eq(users.id, user.id));
+  revalidatePath("/settings");
 }

@@ -8,7 +8,9 @@
 import OAuthProvider, { type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { createMcpHandler } from "agents/mcp/server";
 import vinext from "vinext/server/fetch-handler";
+import { getDb } from "./lib/db";
 import { ensureMigrated } from "./lib/db/migrate";
+import { runNotifications, type PushEnv } from "./lib/notify";
 import { handleAuthorize, SCOPES } from "./lib/mcp/authorize";
 import { buildMcpServer, type McpProps } from "./lib/mcp/server";
 
@@ -67,5 +69,11 @@ export default {
     const url = new URL(request.url);
     const origin = `${url.protocol}//${url.host}`.toLowerCase();
     return providerFor(origin).fetch(request, env, ctx);
+  },
+
+  /** cron ทุกนาที (ดู triggers ใน cloudflare.config.ts) */
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    await ensureMigrated(env.DB);
+    ctx.waitUntil(runNotifications(getDb(env.DB), env as unknown as PushEnv, new Date(controller.scheduledTime)));
   },
 } satisfies ExportedHandler<Env>;

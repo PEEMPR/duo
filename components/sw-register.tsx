@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    if ("serviceWorker" in navigator && location.protocol === "https:") {
+    if ("serviceWorker" in navigator && window.isSecureContext) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);

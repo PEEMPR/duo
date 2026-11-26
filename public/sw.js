@@ -1,5 +1,5 @@
 // Service worker แบบเบา: network-first สำหรับหน้าเว็บ (ข้อมูลสดเสมอ) + มีหน้า offline สำรอง
-const CACHE = "duo-v1";
+const CACHE = "duo-v2";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -31,4 +31,43 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate") {
     event.respondWith(fetch(req).catch(() => caches.match(OFFLINE_URL)));
   }
+});
+
+// ── Web Push ──
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Duo", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Duo";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: data.icon || "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: data.tag || undefined,
+      renotify: !!data.tag,
+      data: { url: data.url || "/dashboard" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || "/dashboard", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const c of all) {
+        if (new URL(c.url).origin === self.location.origin) {
+          await c.focus();
+          if ("navigate" in c) await c.navigate(target);
+          return;
+        }
+      }
+      await self.clients.openWindow(target);
+    })(),
+  );
 });
