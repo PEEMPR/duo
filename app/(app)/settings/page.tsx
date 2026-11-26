@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { logoutAction, regenerateInviteAction, setCharacterAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
+import { changeEmailAction, logoutAction, regenerateInviteAction, setCharacterAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
 import { PushSetup } from "@/components/push-setup";
 import { NativeSelect } from "@/components/ui/native-select";
+import type { EmailChangeError } from "@/lib/auth";
 import { CHARACTERS } from "@/lib/characters";
 import { users } from "@/lib/db/schema";
 import { NOTIFY_KINDS, parsePrefs, REMINDER_TIMES } from "@/lib/notify";
@@ -19,8 +20,18 @@ import { db, requireActor } from "@/lib/server";
 import { THEMES } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
-export default async function SettingsPage() {
+const EMAIL_ERR_TEXT: Record<EmailChangeError, string> = {
+  format: "รูปแบบอีเมลไม่ถูกต้อง",
+  pw: "รหัสผ่านไม่ถูกต้อง",
+  same: "นี่คืออีเมลที่ใช้อยู่แล้ว",
+  taken: "อีเมลนี้มีคนใช้แล้ว",
+  fail: "เปลี่ยนอีเมลไม่สำเร็จ ลองใหม่อีกครั้ง",
+};
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ emailErr?: string; email?: string }> }) {
   const { actor, user } = await requireActor();
+  const sp = await searchParams;
+  const emailErr = Object.hasOwn(EMAIL_ERR_TEXT, sp.emailErr ?? "") ? EMAIL_ERR_TEXT[sp.emailErr as EmailChangeError] : null;
   const couple = await getCouple(db(), actor);
   const me = (await db().select({ character: users.character, prefs: users.notifyPrefs, reminderAt: users.checkinReminderTime }).from(users).where(eq(users.id, user.id)).get())!;
   const prefs = parsePrefs(me.prefs);
@@ -37,7 +48,7 @@ export default async function SettingsPage() {
             <CardTitle><UserRound className="size-4 text-primary" /> โปรไฟล์ของฉัน</CardTitle>
             <CardDescription>ชื่อนี้จะแสดงให้ {couple.partner?.name ?? "อีกฝ่าย"} เห็น ทั้งในแอป แจ้งเตือน และใน Claude</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-5">
             <form action={updateNameAction} className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="displayName">ชื่อเล่น</Label>
@@ -45,6 +56,19 @@ export default async function SettingsPage() {
               </div>
               <p className="text-xs text-muted-foreground">อีเมลสำหรับล็อกอิน: {user.email}</p>
               <SubmitButton variant="secondary">บันทึกชื่อ</SubmitButton>
+            </form>
+            <form action={changeEmailAction} className="flex flex-col gap-3 border-t pt-4">
+              {emailErr && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{emailErr}</p>}
+              {sp.email && !emailErr && <p className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> เปลี่ยนอีเมลแล้ว</p>}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="newEmail">อีเมลใหม่</Label>
+                <Input id="newEmail" name="newEmail" type="email" required maxLength={254} autoComplete="email" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="currentPassword">รหัสผ่านปัจจุบัน</Label>
+                <Input id="currentPassword" name="currentPassword" type="password" required autoComplete="current-password" />
+              </div>
+              <SubmitButton variant="secondary">เปลี่ยนอีเมล</SubmitButton>
             </form>
           </CardContent>
         </Card>

@@ -90,6 +90,38 @@ export async function signUp(db: DB, input: { email: string; name: string; passw
   return id;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const isUniqueViolation = (e: unknown): boolean => {
+  for (let cur = e as { message?: unknown; cause?: unknown } | undefined, i = 0; cur && i < 5; cur = cur.cause as typeof cur, i++) {
+    if (typeof cur.message === "string" && /UNIQUE constraint failed|SQLITE_CONSTRAINT/i.test(cur.message)) return true;
+  }
+  return false;
+};
+
+/** รหัสผลลัพธ์ที่ส่งไปหน้า settings ได้ (ห้ามส่งข้อความ error ดิบ) */
+export type EmailChangeError = "format" | "pw" | "same" | "taken" | "fail";
+
+/** เปลี่ยนอีเมลล็อกอิน: ต้องยืนยันรหัสผ่านปัจจุบัน · session เดิมยังใช้ได้ (ผูกกับ userId ไม่ใช่อีเมล)
+ *  คืน null เมื่อสำเร็จ หรือรหัส error · error ที่ไม่คาดคิดจะ throw ต่อ */
+export async function changeEmail(db: DB, userId: string, input: { email: string; password: string }): Promise<EmailChangeError | null> {
+  const email = input.email.trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 254) return "format";
+  const user = await db.select({ email: users.email, passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId)).get();
+  if (!user || !(await verifyPassword(input.password, user.passwordHash))) return "pw";
+  if (email === user.email) return "same";
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+  if (existing) return "taken";
+  try {
+    await db.update(users).set({ email }).where(eq(users.id, userId));
+  } catch (e) {
+    // มีคนสมัครด้วยอีเมลนี้พอดีระหว่างเช็กกับอัปเดต → UNIQUE index กันไว้
+    if (isUniqueViolation(e)) return "taken";
+    throw e;
+  }
+  return null;
+}
+
 export async function signIn(db: DB, emailRaw: string, password: string): Promise<string | null> {
   const user = await db.select().from(users).where(eq(users.email, emailRaw.trim().toLowerCase())).get();
   if (!user || !(await verifyPassword(password, user.passwordHash))) return null;

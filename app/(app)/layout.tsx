@@ -1,11 +1,22 @@
+import { eq } from "drizzle-orm";
 import { Heart } from "lucide-react";
 import { BottomNav, MobileHeaderLinks, SideNav } from "@/components/app-nav";
 import { getCouple } from "@/lib/core";
+import { couples } from "@/lib/db/schema";
 import { db, requireActor } from "@/lib/server";
-import { isThemeId } from "@/lib/themes";
+import type { Viewport } from "next";
+import { THEMES, isThemeId } from "@/lib/themes";
 
 // ทุกหน้าอ่าน cookie/ข้อมูลสด ห้าม prerender
 export const dynamic = "force-dynamic";
+
+// สี status bar ตามธีมของคู่ (override themeColor จาก root layout → ได้ meta theme-color ตัวเดียว)
+export async function generateViewport(): Promise<Viewport> {
+  const { actor } = await requireActor();
+  const row = await db().select({ theme: couples.theme }).from(couples).where(eq(couples.id, actor.coupleId)).get();
+  const theme = THEMES.find((t) => t.id === row?.theme) ?? THEMES[0];
+  return { themeColor: theme.themeColor };
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { actor } = await requireActor();

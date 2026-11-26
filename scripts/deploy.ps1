@@ -59,8 +59,8 @@ if ($hasKeys -and -not $RotateKeys) {
   $json = (& node scripts/generate-vapid.mjs --json)
   if ($LASTEXITCODE -ne 0 -or -not $json) { Fail "สร้างคีย์ไม่สำเร็จ" }
   $keys = $json | ConvertFrom-Json
-  Run "npx" @("cf", "workers", "secrets", "update", "VAPID_PUBLIC_KEY", "--worker", $Worker, "--text", $keys.publicKey)
-  Run "npx" @("cf", "workers", "secrets", "update", "VAPID_PRIVATE_KEY", "--worker", $Worker, "--text", $keys.privateKey)
+  Run "npx" @("cf", "workers", "secrets", "update", "VAPID_PUBLIC_KEY", "--worker", $Worker, "--type", "secret_text", "--text", $keys.publicKey)
+  Run "npx" @("cf", "workers", "secrets", "update", "VAPID_PRIVATE_KEY", "--worker", $Worker, "--type", "secret_text", "--text", $keys.privateKey)
   $keys = $null; $json = $null
   Ok "ตั้งคีย์เรียบร้อย"
 }

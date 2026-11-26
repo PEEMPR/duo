@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createSession, deleteSession, SESSION_COOKIE, SESSION_DAYS, signIn, signUp } from "@/lib/auth";
+import { changeEmail, createSession, type EmailChangeError, deleteSession, SESSION_COOKIE, SESSION_DAYS, signIn, signUp } from "@/lib/auth";
 import * as core from "@/lib/core";
 import { db, requireActor, requireUser } from "@/lib/server";
 import { env } from "cloudflare:workers";
@@ -244,6 +244,20 @@ export async function updateNameAction(f: FormData) {
   const name = str(f, "displayName").replace(/\s+/g, " ").slice(0, 40);
   if (name) await db().update(users).set({ name }).where(eq(users.id, user.id));
   revalidatePath("/", "layout");
+}
+
+export async function changeEmailAction(f: FormData) {
+  const user = await requireUser();
+  let code: EmailChangeError | null;
+  try {
+    code = await changeEmail(db(), user.id, { email: str(f, "newEmail"), password: String(f.get("currentPassword") ?? "") });
+  } catch (e) {
+    console.error("changeEmail failed", e);
+    code = "fail";
+  }
+  if (code) redirect(`/settings?emailErr=${code}`);
+  revalidatePath("/", "layout");
+  redirect("/settings?email=1");
 }
 
 /* ── ตัวละคร ── */
