@@ -12,6 +12,7 @@ import { usePetBehavior, type PetBehavior } from "./behaviors";
 import { MemoryBubble } from "./memory-bubble";
 import { PetSprite } from "./pet-sprite";
 import { ROOM_META, RoomScene } from "./rooms";
+import { guideTarget, RoomGuideCard, RoomHelp, useRoomGuide } from "./room-guide";
 import { SpeechQueue } from "./speech-queue";
 
 const ROOMS = Object.keys(ROOM_META) as RoomId[];
@@ -140,8 +141,8 @@ function PetButton({
 }
 
 /** ปุ่มเลือกห้องเล็กๆ มุมขวาบนของฉาก → popover รายชื่อห้อง */
-function RoomPicker({ room, onPick }: { room: RoomId; onPick: (r: RoomId) => void }) {
-  const [open, setOpen] = useState(false);
+function RoomPicker({ room, onPick, open, onOpenChange, highlight }: { room: RoomId; onPick: (r: RoomId) => void; open: boolean; onOpenChange: (o: boolean) => void; highlight?: boolean }) {
+  const setOpen = (v: boolean | ((o: boolean) => boolean)) => onOpenChange(typeof v === "function" ? v(open) : v);
   const wrap = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -163,7 +164,7 @@ function RoomPicker({ room, onPick }: { room: RoomId; onPick: (r: RoomId) => voi
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, onOpenChange]);
   return (
     <div
       ref={wrap}
@@ -180,7 +181,7 @@ function RoomPicker({ room, onPick }: { room: RoomId; onPick: (r: RoomId) => voi
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((o) => !o)}
-        className="flex size-11 items-center justify-center rounded-full border bg-background/80 text-foreground shadow-sm backdrop-blur outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn("flex size-11 items-center justify-center rounded-full border bg-background/80 text-foreground shadow-sm backdrop-blur outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring", highlight && "ring-2 ring-primary ring-offset-2 ring-offset-background")}
       >
         <Palette className="size-5" aria-hidden />
       </button>
@@ -242,6 +243,8 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
   queueRef.current = queue;
   const queueKey = useRef(0);
   const [roomError, setRoomError] = useState(false);
+  const [menu, setMenu] = useState<"picker" | "help" | null>(null); // เปิดได้ทีละอัน
+  const guide = useRoomGuide();
 
   const openQueue = useCallback((start: number, replay: boolean) => {
     queueKey.current += 1;
@@ -467,6 +470,9 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
   };
 
   const showPartner = !!partner?.present && phase !== "hidden";
+  // คำแนะนำรอจนน้องเดินถึงและลูกโป่งคำพูดปิด
+  const guideBlocked = phase === "walking" || !!queue;
+  const hint = guideTarget(guide, guideBlocked);
 
   return (
     <div className="flex flex-col gap-4">
@@ -521,8 +527,17 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
           </div>
         )}
       </div>
-      <RoomPicker room={state.room} onPick={pickRoom} />
+      <RoomHelp open={menu === "help"} onOpenChange={(o) => setMenu(o ? "help" : null)} onRestart={guide.restart} />
+      <RoomPicker
+        room={state.room}
+        onPick={pickRoom}
+        open={menu === "picker"}
+        onOpenChange={(o) => setMenu(o ? "picker" : null)}
+        highlight={hint === "picker"}
+      />
       </div>
+
+      <RoomGuideCard guide={guide} blocked={guideBlocked} reducedMotion={reduced} />
 
       {/* สถานะอีกฝ่าย */}
       {!partner ? (
@@ -541,7 +556,9 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
         </p>
       )}
 
-      <ActionsBar state={state} onChange={setState} />
+      <div className={cn("rounded-2xl", hint === "actions" && "ring-2 ring-primary ring-offset-2 ring-offset-background")}>
+        <ActionsBar state={state} onChange={setState} />
+      </div>
     </div>
   );
 }
