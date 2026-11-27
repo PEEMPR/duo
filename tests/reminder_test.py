@@ -65,11 +65,11 @@ with sync_playwright() as p:
     A = b.new_context(locale="th-TH", timezone_id="Asia/Bangkok"); a = A.new_page(); hook(a, "A")
     signup(a, "AA", EA)
     a.fill("#name", "Remind Test"); a.fill("#anniversary", "2023-02-14")
-    a.locator("form").first.locator("button[type=submit]").click(); a.wait_for_url(re.compile(r"/calendar"))
+    a.locator("form").first.locator("button[type=submit]").click(); a.wait_for_url(re.compile(r"/dashboard"))
     a.goto(f"{BASE}/settings"); code = a.locator("code.font-mono").first.inner_text().strip()
     B = b.new_context(locale="th-TH", timezone_id="Asia/Bangkok"); m = B.new_page(); hook(m, "B")
     signup(m, "BB", EB); m.locator("#code").fill(code)
-    m.locator("form").nth(1).locator("button[type=submit]").click(); m.wait_for_url(re.compile(r"/calendar"))
+    m.locator("form").nth(1).locator("button[type=submit]").click(); m.wait_for_url(re.compile(r"/dashboard"))
     uids = {r["email"]: r["id"] for r in dbq("select id,email from users")}
     UA, UB = uids[EA], uids[EB]
     chk("0 setup couple", bool(UA and UB), f"A={EA} B={EB} now(BKK)={now:%Y-%m-%d %H:%M}")

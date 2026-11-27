@@ -24,7 +24,7 @@ const opt = (f: FormData, k: string) => str(f, k) || undefined;
 
 /** รับเฉพาะ path ภายในเว็บ กัน open redirect */
 function safeNext(v: string | undefined) {
-  return v && /^\/(?![\\/])/.test(v) && !v.includes("\\") ? v : "/calendar";
+  return v && /^\/(?![\\/])/.test(v) && !v.includes("\\") ? v : "/dashboard";
 }
 
 async function setSessionCookie(userId: string) {
@@ -46,7 +46,7 @@ export async function signupAction(_: FormState, f: FormData): Promise<FormState
   }
   const next = safeNext(opt(f, "next"));
   if (isExternalRoute(next)) return { hardRedirect: next };
-  redirect(next === "/calendar" ? "/onboarding" : next);
+  redirect(next === "/dashboard" ? "/onboarding" : next);
 }
 
 export async function loginAction(_: FormState, f: FormData): Promise<FormState> {
@@ -71,7 +71,7 @@ export async function logoutAction() {
 export async function createCoupleAction(_: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   await core.createCouple(db(), user.id, { name: str(f, "name"), anniversary: opt(f, "anniversary") });
-  redirect("/calendar");
+  redirect("/dashboard");
 }
 
 export async function joinCoupleAction(_: FormState, f: FormData): Promise<FormState> {
@@ -81,7 +81,7 @@ export async function joinCoupleAction(_: FormState, f: FormData): Promise<FormS
   } catch (e) {
     return { error: (e as Error).message };
   }
-  redirect("/calendar");
+  redirect("/dashboard");
 }
 
 export async function updateCoupleAction(f: FormData) {

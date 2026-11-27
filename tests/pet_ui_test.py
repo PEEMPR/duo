@@ -31,10 +31,10 @@ def signup(page, name, email):
     page.click("button[type=submit]"); page.wait_for_url(re.compile(r"/onboarding"))
 def create_couple(page, name="Duo QA"):
     page.fill("#name", name); page.fill("#anniversary", "2023-02-14")
-    page.locator("form").first.locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/calendar"))
+    page.locator("form").first.locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/dashboard"))
     page.goto(f"{BASE}/settings"); return page.locator("code.font-mono").first.inner_text().strip()
 def join(page, code):
-    page.locator("#code").fill(code); page.locator("form").nth(1).locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/calendar"))
+    page.locator("#code").fill(code); page.locator("form").nth(1).locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/dashboard"))
 
 def bubble(pg): return pg.locator("[role=group][aria-label^='ข้อความจาก']")
 def counter(pg):

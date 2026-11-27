@@ -7,7 +7,7 @@ import { checkCornerNew } from "@/app/(app)/corner-actions";
 import { PetSprite } from "@/components/pet/pet-sprite";
 
 const THROTTLE_MS = 60_000;
-const hiddenPath = (p: string) => p.startsWith("/room") || p.startsWith("/calendar");
+const hiddenPath = (p: string) => p.startsWith("/room") || p.startsWith("/dashboard");
 
 export function PetCorner({ character, enabled, hasNew: initialNew }: { character: string | null; enabled: boolean; hasNew: boolean }) {
   const path = usePathname();

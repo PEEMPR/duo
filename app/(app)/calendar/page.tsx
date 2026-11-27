@@ -11,10 +11,9 @@ import { SubmitButton } from "@/components/submit-button";
 import { ReminderSelect } from "@/components/reminder-select";
 import { REMINDER_ERRORS } from "@/lib/reminders";
 import { createEventAction, deleteEventAction } from "@/app/actions";
-import { EVENT_ERRORS, eventDays, getRoomState, listBirthdays, listEvents } from "@/lib/core";
-import { RoomClient } from "@/components/pet/room-client";
+import { EVENT_ERRORS, eventDays, listBirthdays, listEvents } from "@/lib/core";
 import { appTz, db, requireActor } from "@/lib/server";
-import { DEFAULT_TZ, addDays, formatDateTh, formatEventRange, todayIn } from "@/lib/time";
+import { addDays, formatDateTh, formatEventRange, todayIn } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 const KNOWN_ERRORS: ReadonlySet<string> = new Set([...Object.values(EVENT_ERRORS), ...Object.values(REMINDER_ERRORS)]);
@@ -39,8 +38,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const startOffset = new Date(`${first}T00:00:00Z`).getUTCDay();
   const gridStart = addDays(first, -startOffset);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const [room, evts, birthdays] = await Promise.all([
-    getRoomState(db(), actor).catch(() => null),
+  const [evts, birthdays] = await Promise.all([
     listEvents(db(), actor, { from: cells[0], to: cells[41] }),
     listBirthdays(db(), actor, { from: cells[0], to: cells[41] }),
   ]);
@@ -55,11 +53,6 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   return (
     <div>
-      {room && (
-        <section aria-label="ห้องของน้อง" className="mx-auto mb-6 w-full max-w-[480px]">
-          <RoomClient initial={room} tz={actor.tz || DEFAULT_TZ} />
-        </section>
-      )}
       <PageHeader title="ปฏิทินของเรา" description="นัดหมายและวันสำคัญร่วมกัน" />
       <div id="cal" className="grid scroll-mt-4 gap-5 lg:grid-cols-[1fr_340px]">
         <Card className="gap-3">

@@ -22,7 +22,7 @@ with sync_playwright() as p:
     # create couple
     a.fill("#name", "ME & You"); a.fill("#anniversary", "2023-02-14")
     a.locator("form").first.locator("button[type=submit]").click()
-    a.wait_for_url(re.compile(r"/calendar"))
+    a.wait_for_url(re.compile(r"/dashboard"))
     a.goto(f"{BASE}/settings")
     code = a.locator("code.font-mono").first.inner_text().strip()
     print("invite code:", code)
@@ -33,7 +33,7 @@ with sync_playwright() as p:
     signup(m, "You", f"you{stamp}@test.dev")
     m.locator("#code").fill(code)
     m.locator("form").nth(1).locator("button[type=submit]").click()
-    m.wait_for_url(re.compile(r"/calendar"))
+    m.wait_for_url(re.compile(r"/dashboard"))
     print("partner joined")
 
     # A: add event

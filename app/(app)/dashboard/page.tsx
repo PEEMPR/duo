@@ -6,18 +6,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { moodEmoji } from "@/components/mood";
 import { toggleItemAction } from "@/app/actions";
-import { getSummary } from "@/lib/core";
+import { getRoomState, getSummary } from "@/lib/core";
+import { RoomClient } from "@/components/pet/room-client";
 import { db, requireActor } from "@/lib/server";
-import { daysBetween, formatDateTh, formatEventRange, formatTime, isoToLocalYmd } from "@/lib/time";
+import { DEFAULT_TZ, daysBetween, formatDateTh, formatEventRange, formatTime, isoToLocalYmd } from "@/lib/time";
 
 export default async function Dashboard() {
   const { actor } = await requireActor();
-  const s = await getSummary(db(), actor);
+  // ห้องของน้องอยู่บนสุดของหน้าภาพรวม (หน้าแรก) — ระบบน้องมีปัญหาก็ยังเปิดภาพรวมได้
+  const [s, room] = await Promise.all([getSummary(db(), actor), getRoomState(db(), actor).catch(() => null)]);
   const tz = actor.tz;
   const together = s.couple.anniversary ? daysBetween(s.couple.anniversary, s.today) : null;
 
   return (
     <div className="flex flex-col gap-5">
+      {room && (
+        <section aria-label="ห้องของน้อง" className="mx-auto w-full max-w-[480px]">
+          <RoomClient initial={room} tz={actor.tz || DEFAULT_TZ} />
+        </section>
+      )}
       <div>
         <p className="text-sm text-muted-foreground">{formatDateTh(s.today, { weekday: "long", day: "numeric", month: "long" })}</p>
         <h1 className="text-2xl font-semibold tracking-tight">
