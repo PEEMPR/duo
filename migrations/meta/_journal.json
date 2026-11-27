@@ -22,6 +22,27 @@
       "when": 1795658945191,
       "tag": "0002_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795685193755,
+      "tag": "0003_event_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795686764098,
+      "tag": "0004_birthday",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795688806816,
+      "tag": "0005_pet_room",
+      "breakpoints": true
     }
   ]
 }

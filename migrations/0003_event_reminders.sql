@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `remind_before` text DEFAULT 'd1' NOT NULL;

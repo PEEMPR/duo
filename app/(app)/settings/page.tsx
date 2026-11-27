@@ -8,15 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { changeEmailAction, logoutAction, regenerateInviteAction, setCharacterAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
+import { changeEmailAction, updateBirthdayAction, logoutAction, regenerateInviteAction, setCharacterAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
 import { PushSetup } from "@/components/push-setup";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { EmailChangeError } from "@/lib/auth";
 import { CHARACTERS } from "@/lib/characters";
 import { users } from "@/lib/db/schema";
 import { NOTIFY_KINDS, parsePrefs, REMINDER_TIMES } from "@/lib/notify";
-import { getCouple } from "@/lib/core";
-import { db, requireActor } from "@/lib/server";
+import { getCouple, getMyBirthday } from "@/lib/core";
+import { todayIn } from "@/lib/time";
+import { appTz, db, requireActor } from "@/lib/server";
 import { THEMES } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
@@ -28,10 +29,18 @@ const EMAIL_ERR_TEXT: Record<EmailChangeError, string> = {
   fail: "เปลี่ยนอีเมลไม่สำเร็จ ลองใหม่อีกครั้ง",
 };
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ emailErr?: string; email?: string }> }) {
+const BDAY_ERR_TEXT: Record<string, string> = {
+  invalid: "วันเกิดไม่ถูกต้อง",
+  future: "วันเกิดต้องไม่อยู่ในอนาคต",
+  fail: "บันทึกวันเกิดไม่สำเร็จ ลองใหม่อีกครั้ง",
+};
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ emailErr?: string; email?: string; bdayErr?: string; bday?: string }> }) {
   const { actor, user } = await requireActor();
   const sp = await searchParams;
   const emailErr = Object.hasOwn(EMAIL_ERR_TEXT, sp.emailErr ?? "") ? EMAIL_ERR_TEXT[sp.emailErr as EmailChangeError] : null;
+  const bdayErr = Object.hasOwn(BDAY_ERR_TEXT, sp.bdayErr ?? "") ? BDAY_ERR_TEXT[sp.bdayErr as string] : null;
+  const myBday = await getMyBirthday(db(), user.id);
   const couple = await getCouple(db(), actor);
   const me = (await db().select({ character: users.character, prefs: users.notifyPrefs, reminderAt: users.checkinReminderTime }).from(users).where(eq(users.id, user.id)).get())!;
   const prefs = parsePrefs(me.prefs);
@@ -69,6 +78,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <Input id="currentPassword" name="currentPassword" type="password" required autoComplete="current-password" />
               </div>
               <SubmitButton variant="secondary">เปลี่ยนอีเมล</SubmitButton>
+            </form>
+            <form action={updateBirthdayAction} className="flex flex-col gap-3 border-t pt-4">
+              {bdayErr && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{bdayErr}</p>}
+              {sp.bday && !bdayErr && <p className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> บันทึกวันเกิดแล้ว</p>}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="birthday">วันเกิด</Label>
+                <Input id="birthday" name="birthday" type="date" defaultValue={myBday.birthday ?? ""} max={todayIn(appTz())} autoComplete="bday" />
+                <p className="text-xs text-muted-foreground">เว้นว่างแล้วบันทึก = ล้างวันเกิด</p>
+              </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="showBirthday" defaultChecked={myBday.show} className="mt-0.5 size-4 accent-primary" />
+                <span>โชว์วันเกิดในปฏิทิน <span className="text-muted-foreground">(ปิด = ไม่มีใครเห็น รวมถึงตัวเอง และไม่มีแจ้งเตือน)</span></span>
+              </label>
+              <SubmitButton variant="secondary">บันทึกวันเกิด</SubmitButton>
             </form>
           </CardContent>
         </Card>

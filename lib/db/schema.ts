@@ -11,6 +11,13 @@ export const users = sqliteTable("users", {
   character: text("character"), // ตัวละครที่เลือก (ดู lib/characters.ts)
   notifyPrefs: text("notify_prefs").notNull().default("{}"), // JSON: เปิด/ปิดแจ้งเตือนแต่ละประเภท
   checkinReminderTime: text("checkin_reminder_time").notNull().default("21:00"),
+  birthday: text("birthday"), // YYYY-MM-DD (เก็บปีด้วย ไม่โชว์อายุ) · null = ไม่ได้ใส่
+  showBirthday: integer("show_birthday", { mode: "boolean" }).notNull().default(true),
+  // ห้องของน้อง: ขนมที่สะสม (สูงสุด 20) · ได้จากการทำรายการเสร็จ วันละไม่เกิน 5 (treats_day = วันท้องถิ่นที่นับ treats_today)
+  treats: integer("treats").notNull().default(0),
+  treatsDay: text("treats_day"),
+  treatsToday: integer("treats_today").notNull().default(0),
+  petRest: integer("pet_rest", { mode: "boolean" }).notNull().default(false), // โหมดพัก: น้องไม่เศร้า/ไม่ขดตัวถ้าไม่ได้เช็กอินนาน
   createdAt: text("created_at").notNull().default(now),
 });
 
@@ -31,6 +38,7 @@ export const couples = sqliteTable("couples", {
   anniversary: text("anniversary"), // YYYY-MM-DD
   inviteCode: text("invite_code").notNull().unique(),
   theme: text("theme").notNull().default("rose"), // ธีมสีที่คู่นี้เลือก (ดู lib/themes.ts)
+  room: text("room"), // ห้องของน้อง (ดู lib/core/pet.ts ROOM_IDS) · null = ตามธีม
   createdAt: text("created_at").notNull().default(now),
 });
 
@@ -55,6 +63,7 @@ export const events = sqliteTable(
     startAt: text("start_at").notNull(), // ISO 8601 (UTC)
     endAt: text("end_at"),
     allDay: integer("all_day", { mode: "boolean" }).notNull().default(false),
+    remindBefore: text("remind_before").notNull().default("d1"),
     createdBy: text("created_by").notNull().references(() => users.id),
     createdAt: text("created_at").notNull().default(now),
   },
@@ -198,4 +207,35 @@ export const notificationLog = sqliteTable(
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [primaryKey({ columns: [t.userId, t.kind, t.ref] })],
+);
+
+/**
+ * กิจกรรมที่น้องของอีกฝ่ายจะเล่าให้ฟังในห้อง (ดู lib/core/pet.ts)
+ * text = ข้อความที่ server สร้าง (ไม่มีข้อมูลส่วนตัว) · เช็กอินไม่เก็บ text — สร้างตอนอ่านเพื่อบังคับกฎซ่อนเช็กอิน
+ */
+export const activityFeed = sqliteTable(
+  "activity_feed",
+  {
+    id: text("id").primaryKey(),
+    coupleId: text("couple_id").notNull().references(() => couples.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    refId: text("ref_id"),
+    text: text("text"),
+    meta: text("meta"), // JSON เล็กๆ เช่น { target: "me" | "partner" } ของขนม, { listId } ของงานที่ฝาก
+    day: text("day").notNull(), // YYYY-MM-DD ตามเขตเวลาของผู้ทำ
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("activity_feed_couple_day_idx").on(t.coupleId, t.day)],
+);
+
+/** ผู้ใช้เห็นข้อความไหนไปแล้ว (item_id = id ของ activity_feed หรือ "memory:<วัน>") */
+export const petSeen = sqliteTable(
+  "pet_seen",
+  {
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    itemId: text("item_id").notNull(),
+    seenAt: text("seen_at").notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.itemId] })],
 );

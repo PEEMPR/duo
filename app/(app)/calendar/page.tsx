@@ -1,17 +1,23 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Clock, MapPin, Trash2 } from "lucide-react";
+import { Cake, ChevronLeft, ChevronRight, Clock, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BirthdayRow, birthdayLabel } from "@/components/birthday-pin";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
+import { ReminderSelect } from "@/components/reminder-select";
+import { REMINDER_ERRORS } from "@/lib/reminders";
 import { createEventAction, deleteEventAction } from "@/app/actions";
-import { eventDays, listEvents } from "@/lib/core";
-import { db, requireActor } from "@/lib/server";
+import { EVENT_ERRORS, eventDays, listBirthdays, listEvents } from "@/lib/core";
+import { appTz, db, requireActor } from "@/lib/server";
 import { addDays, formatDateTh, formatEventRange, todayIn } from "@/lib/time";
 import { cn } from "@/lib/utils";
+
+const KNOWN_ERRORS: ReadonlySet<string> = new Set([...Object.values(EVENT_ERRORS), ...Object.values(REMINDER_ERRORS)]);
+const FALLBACK_ERROR = "บันทึกนัดไม่สำเร็จ ลองใหม่อีกครั้ง";
 
 const WEEKDAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
@@ -32,7 +38,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const startOffset = new Date(`${first}T00:00:00Z`).getUTCDay();
   const gridStart = addDays(first, -startOffset);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const evts = await listEvents(db(), actor, { from: cells[0], to: cells[41] });
+  const [evts, birthdays] = await Promise.all([
+    listEvents(db(), actor, { from: cells[0], to: cells[41] }),
+    listBirthdays(db(), actor, { from: cells[0], to: cells[41] }),
+  ]);
+  const bdByDay = new Map<string, typeof birthdays>();
+  for (const b of birthdays) bdByDay.set(b.date, [...(bdByDay.get(b.date) ?? []), b]);
+  const dayBirthdays = bdByDay.get(selected) ?? [];
   const byDay = new Map<string, typeof evts>();
   for (const e of evts) {
     for (const k of eventDays(e, actor.tz)) byDay.set(k, [...(byDay.get(k) ?? []), e]);
@@ -60,6 +72,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
               {cells.map((d) => {
                 const inMonth = d.startsWith(month);
                 const list = byDay.get(d) ?? [];
+                const bds = bdByDay.get(d) ?? [];
                 return (
                   <Link
                     key={d}
@@ -71,6 +84,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                     )}
                   >
                     <span className={cn("mx-auto flex size-6 items-center justify-center rounded-full", d === today && "bg-primary text-primary-foreground")}>{Number(d.slice(8))}</span>
+                    {bds.length > 0 && (
+                      <Cake className="mx-auto mt-0.5 size-3.5 text-pink-500" role="img" aria-label={bds.map(birthdayLabel).join(", ")} />
+                    )}
                     <div className="mt-0.5 hidden flex-col gap-0.5 sm:flex">
                       {list.slice(0, 2).map((e) => <span key={e.id} className="truncate rounded bg-primary/10 px-1 text-[10px] text-primary">{e.title}</span>)}
                       {list.length > 2 && <span className="text-[10px] text-muted-foreground">+{list.length - 2}</span>}
@@ -87,10 +103,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <Card>
             <CardHeader><CardTitle>{formatDateTh(selected, { weekday: "long", day: "numeric", month: "long" })}</CardTitle></CardHeader>
             <CardContent>
-              {dayEvents.length === 0 ? (
+              {dayEvents.length === 0 && dayBirthdays.length === 0 ? (
                 <p className="text-sm text-muted-foreground">ไม่มีนัดในวันนี้</p>
               ) : (
                 <ul className="flex flex-col gap-3">
+                  {dayBirthdays.map((b) => <BirthdayRow key={b.userId} pin={b} />)}
                   {dayEvents.map((e) => (
                     <li key={e.id} className="flex items-start gap-3 rounded-lg border p-3 text-sm">
                       <div className="min-w-0 flex-1">
@@ -117,7 +134,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             <CardHeader><CardTitle>เพิ่มนัด</CardTitle></CardHeader>
             <CardContent>
               <form action={createEventAction} className="flex flex-col gap-3">
-                {sp.err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{sp.err}</p>}
+                {sp.err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{KNOWN_ERRORS.has(sp.err) ? sp.err : FALLBACK_ERROR}</p>}
                 <div className="flex flex-col gap-2"><Label htmlFor="title">ชื่อนัด</Label><Input id="title" name="title" required placeholder="เช่น ดินเนอร์ครบรอบ" /></div>
                 <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
                   <div className="flex flex-col gap-2"><Label htmlFor="date">วันเริ่ม</Label><Input id="date" name="date" type="date" defaultValue={selected} required /></div>
@@ -125,6 +142,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   <div className="flex flex-col gap-2"><Label htmlFor="endDate">วันสิ้นสุด</Label><Input id="endDate" name="endDate" type="date" /></div>
                   <div className="flex flex-col gap-2"><Label htmlFor="endTime">เวลาสิ้นสุด</Label><Input id="endTime" name="endTime" type="time" /></div>
                 </div>
+                <ReminderSelect tz={appTz()} defaultDate={selected} />
                 <p className="-mt-1 text-xs text-muted-foreground">ไม่ใส่วันสิ้นสุด = จบในวันเดียว · ไม่ใส่เวลาเลย = ทั้งวัน (หลายวันก็ได้ เช่น ทริป 3 วัน)</p>
                 <div className="flex flex-col gap-2"><Label htmlFor="location">สถานที่</Label><Input id="location" name="location" /></div>
                 <div className="flex flex-col gap-2"><Label htmlFor="description">รายละเอียด</Label><Textarea id="description" name="description" /></div>

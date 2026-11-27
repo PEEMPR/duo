@@ -1,7 +1,9 @@
 import { and, eq, gt } from "drizzle-orm";
 import type { DB } from "./db";
 import { coupleMembers, sessions, users } from "./db/schema";
+import { parseBirthday } from "./core/birthday";
 import { newId } from "./ids";
+import { todayIn } from "./time";
 
 export const SESSION_COOKIE = "cs_session";
 export const SESSION_DAYS = 30;
@@ -80,13 +82,22 @@ export function readCookie(header: string | null, name: string): string | null {
   return null;
 }
 
-export async function signUp(db: DB, input: { email: string; name: string; password: string }) {
+export async function signUp(db: DB, input: { email: string; name: string; password: string; birthday?: string | null }) {
   const email = input.email.trim().toLowerCase();
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
   if (existing) throw new Error("อีเมลนี้ถูกใช้แล้ว");
   if (input.password.length < 8) throw new Error("รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร");
+  // ไม่เชื่อค่าจากผู้เรียก: ตรวจซ้ำที่นี่ (ว่าง/null → null)
+  const birthday = parseBirthday(input.birthday, todayIn());
+  if (birthday.error) throw new Error(birthday.error);
   const id = newId();
-  await db.insert(users).values({ id, email, name: input.name.trim() || email.split("@")[0], passwordHash: await hashPassword(input.password) });
+  await db.insert(users).values({
+    id,
+    email,
+    name: input.name.trim() || email.split("@")[0],
+    passwordHash: await hashPassword(input.password),
+    birthday: birthday.value,
+  });
   return id;
 }
 

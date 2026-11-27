@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ActionForm } from "@/components/auth-form";
 import { signupAction } from "@/app/actions";
+import { appTz } from "@/lib/server";
+import { todayIn } from "@/lib/time";
 
 export default async function SignupPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next } = await searchParams;
@@ -18,6 +20,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           submit="สร้างบัญชี"
           fields={[
             { name: "name", label: "ชื่อเล่น", placeholder: "เช่น ME", autoComplete: "nickname" },
+            { name: "birthday", label: "วันเกิด (ไม่ใส่ก็ได้)", type: "date", required: false, max: todayIn(appTz()), autoComplete: "bday", hint: "ใช้ปักหมุดในปฏิทิน ซ่อนได้ทีหลังในตั้งค่า" },
             { name: "email", label: "อีเมล", type: "email", autoComplete: "email" },
             { name: "password", label: "รหัสผ่าน (อย่างน้อย 8 ตัว)", type: "password", autoComplete: "new-password" },
           ]}

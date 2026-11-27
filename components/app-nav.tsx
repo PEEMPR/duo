@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarHeart, HeartPulse, Home, ListChecks, NotebookPen, Settings, Target } from "lucide-react";
+import { CalendarHeart, HeartPulse, Home, ListChecks, NotebookPen, PawPrint, Settings, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const NAV = [
   { href: "/dashboard", label: "ภาพรวม", icon: Home },
+  { href: "/room", label: "ห้องน้อง", icon: PawPrint },
   { href: "/calendar", label: "ปฏิทิน", icon: CalendarHeart },
   { href: "/lists", label: "รายการ", icon: ListChecks },
   { href: "/checkin", label: "เช็กอิน", icon: HeartPulse },
@@ -61,6 +62,7 @@ export function BottomNav() {
 export function MobileHeaderLinks() {
   const path = usePathname();
   const links = [
+    { href: "/room", label: "ห้องน้อง", icon: PawPrint },
     { href: "/plans", label: "แผน", icon: Target },
     { href: "/settings", label: "ตั้งค่า / ออกจากระบบ", icon: Settings },
   ];

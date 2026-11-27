@@ -1,8 +1,22 @@
 export const DEFAULT_TZ = "Asia/Bangkok";
 
+/**
+ * Intl.DateTimeFormat สร้างแพง (~0.1 ms ต่อครั้ง) → เก็บไว้ใช้ซ้ำต่อ (key)
+ * key ต้องระบุ locale + options + tz ให้ครบ (ผู้เรียกกำหนดเอง เพื่อไม่ต้อง JSON.stringify ทุกครั้ง)
+ */
+const dtfCache = new Map<string, Intl.DateTimeFormat>();
+export function cachedDtf(key: string, locale: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let f = dtfCache.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, opts);
+    dtfCache.set(key, f);
+  }
+  return f;
+}
+
 /** YYYY-MM-DD ของ "วันนี้" ในเขตเวลาที่กำหนด */
 export function todayIn(tz: string = DEFAULT_TZ, at: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+  return cachedDtf(`ymd|${tz}`, "en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
 }
 
 export function addDays(ymd: string, days: number): string {
@@ -25,7 +39,7 @@ export function dayRangeIso(ymd: string, tz: string = DEFAULT_TZ): { start: stri
 }
 
 export function tzOffsetMinutes(tz: string, at: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = cachedDtf(`offset|${tz}`, "en-US", {
     timeZone: tz,
     hourCycle: "h23",
     year: "numeric",
@@ -45,11 +59,11 @@ export function isoToLocalYmd(iso: string, tz: string = DEFAULT_TZ): string {
 }
 
 export function formatTime(iso: string, tz: string = DEFAULT_TZ): string {
-  return new Intl.DateTimeFormat("th-TH", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
+  return cachedDtf(`timeTh|${tz}`, "th-TH", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 }
 
 export function formatDateTh(ymd: string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" }): string {
-  return new Intl.DateTimeFormat("th-TH", { timeZone: "UTC", ...opts }).format(new Date(`${ymd}T00:00:00Z`));
+  return cachedDtf(`dateTh|${JSON.stringify(opts)}`, "th-TH", { timeZone: "UTC", ...opts }).format(new Date(`${ymd}T00:00:00Z`));
 }
 
 export function daysBetween(fromYmd: string, toYmd: string): number {

@@ -47,22 +47,32 @@ export function buildMcpServer(env: { DB: D1Database; APP_TIMEZONE?: string }, p
 
   const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("YYYY-MM-DD");
 
-  tool("get_summary", "สรุปภาพรวมของคู่วันนี้: สถานะเช็กอิน, นัด 7 วันข้างหน้า, งานค้าง, แผนที่กำลังทำ, บันทึกล่าสุด (เวลาเป็นเขต Asia/Bangkok)", z.object({}), READ, (a) =>
+  tool("get_summary", "สรุปภาพรวมของคู่วันนี้: สถานะเช็กอิน, นัด 7 วันข้างหน้า, วันเกิดที่เปิดแสดงใน 30 วันข้างหน้า (birthdays), งานค้าง, แผนที่กำลังทำ, บันทึกล่าสุด (เวลาเป็นเขต Asia/Bangkok)", z.object({}), READ, (a) =>
     core.getSummary(db, a),
   );
 
   /* ปฏิทิน */
   tool(
     "list_events",
-    "ดูนัดหมายที่คาบเกี่ยวช่วงวันที่ รวมนัดหลายวันที่ยังไม่จบ (ค่าเริ่มต้น: วันนี้ถึงอีก 30 วัน)",
+    "ดูนัดหมายที่คาบเกี่ยวช่วงวันที่ รวมนัดหลายวันที่ยังไม่จบ และวันเกิดที่เปิดแสดง (birthdays) (ค่าเริ่มต้น: วันนี้ถึงอีก 30 วัน)",
     z.object({ from: date.optional(), to: date.optional() }),
     READ,
-    (a, i) => {
+    async (a, i) => {
       const from = i.from ?? todayIn(tz);
-      return core.listEvents(db, a, { from, to: i.to ?? addDays(from, 30) });
+      const range = { from, to: i.to ?? addDays(from, 30) };
+      if (range.to < range.from) throw new Error("ช่วงวันที่ไม่ถูกต้อง");
+      if (range.to > addDays(range.from, 366)) throw new Error("ช่วงวันที่ยาวเกินไป (ไม่เกิน 1 ปี)");
+      const [events, birthdays] = await Promise.all([core.listEvents(db, a, range), core.listBirthdays(db, a, range)]);
+      return { events, birthdays };
     },
   );
-  tool("create_event", "เพิ่มนัดหมายในปฏิทินร่วม รองรับนัดหลายวัน (ใส่ endDate) ถ้าไม่ระบุ time และ endTime จะเป็นนัดทั้งวัน", core.EventInput, WRITE, async (a, i) => ({ id: await core.createEvent(db, a, i), created: i.title }));
+  tool(
+    "create_event",
+    "เพิ่มนัดหมายในปฏิทินร่วม รองรับนัดหลายวัน (ใส่ endDate) ถ้าไม่ระบุ time และ endTime จะเป็นนัดทั้งวัน ตั้งเวลาเตือนล่วงหน้าได้ด้วย remindBefore (ค่าเริ่มต้น d1 = 1 วันก่อน 09:00; h2/h3/h6/h12 = ชั่วโมงก่อนนัด; none = ไม่เตือน) นัดที่มีเวลาจะเตือนก่อน 1 ชั่วโมงอัตโนมัติ เลือกเวลาที่ผ่านไปแล้วไม่ได้",
+    core.EventInput,
+    WRITE,
+    async (a, i) => ({ ...(await core.createEvent(db, a, i)), created: i.title }),
+  );
   tool("delete_event", "ลบนัดหมายด้วย id", z.object({ id: z.string() }), { ...WRITE, destructiveHint: true }, async (a, i) => {
     await core.deleteEvent(db, a, i.id);
     return "ลบแล้ว";

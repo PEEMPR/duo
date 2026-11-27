@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/submit-button";
 import type { FormState } from "@/app/actions";
 
-type Field = { name: string; label: string; type?: string; placeholder?: string; required?: boolean; autoComplete?: string };
+type Field = { name: string; label: string; type?: string; placeholder?: string; required?: boolean; autoComplete?: string; max?: string; hint?: string };
 
 export function ActionForm({
   action,
@@ -29,7 +29,8 @@ export function ActionForm({
       {fields.map((f) => (
         <div key={f.name} className="flex flex-col gap-2">
           <Label htmlFor={f.name}>{f.label}</Label>
-          <Input id={f.name} name={f.name} type={f.type ?? "text"} placeholder={f.placeholder} required={f.required ?? true} autoComplete={f.autoComplete} />
+          <Input id={f.name} name={f.name} type={f.type ?? "text"} placeholder={f.placeholder} required={f.required ?? true} autoComplete={f.autoComplete} max={f.max} />
+          {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
         </div>
       ))}
       {state?.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.error}</p>}

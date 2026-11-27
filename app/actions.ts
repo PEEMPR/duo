@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { changeEmail, createSession, type EmailChangeError, deleteSession, SESSION_COOKIE, SESSION_DAYS, signIn, signUp } from "@/lib/auth";
 import * as core from "@/lib/core";
-import { db, requireActor, requireUser } from "@/lib/server";
+import { appTz, db, requireActor, requireUser } from "@/lib/server";
+import { todayIn } from "@/lib/time";
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
 import { pushSubscriptions, users } from "@/lib/db/schema";
@@ -35,8 +36,10 @@ async function setSessionCookie(userId: string) {
 /* ── Auth ── */
 
 export async function signupAction(_: FormState, f: FormData): Promise<FormState> {
+  const bday = core.parseBirthday(str(f, "birthday"), todayIn(appTz()));
+  if (bday.error) return { error: bday.error };
   try {
-    const id = await signUp(db(), { email: str(f, "email"), name: str(f, "name"), password: String(f.get("password") ?? "") });
+    const id = await signUp(db(), { email: str(f, "email"), name: str(f, "name"), password: String(f.get("password") ?? ""), birthday: bday.value });
     await setSessionCookie(id);
   } catch (e) {
     return { error: (e as Error).message };
@@ -113,6 +116,7 @@ export async function createEventAction(f: FormData) {
       endTime: opt(f, "endTime"),
       location: opt(f, "location"),
       description: opt(f, "description"),
+      remindBefore: opt(f, "remindBefore"),
     });
   } catch (e) {
     const msg = e instanceof Error && !("issues" in e) ? e.message : "ข้อมูลนัดไม่ถูกต้อง";
@@ -258,6 +262,24 @@ export async function changeEmailAction(f: FormData) {
   if (code) redirect(`/settings?emailErr=${code}`);
   revalidatePath("/", "layout");
   redirect("/settings?email=1");
+}
+
+export async function updateBirthdayAction(f: FormData) {
+  const user = await requireUser();
+  let code: "invalid" | "future" | "fail" | null = null;
+  try {
+    await core.setBirthday(db(), user.id, { birthday: str(f, "birthday"), show: f.get("showBirthday") === "on" }, todayIn(appTz()));
+  } catch (e) {
+    const m = (e as Error).message;
+    code = m === core.BIRTHDAY_ERRORS.future ? "future" : m === core.BIRTHDAY_ERRORS.invalid ? "invalid" : null;
+    if (!code) {
+      console.error("setBirthday failed", e);
+      code = "fail";
+    }
+  }
+  if (code) redirect(`/settings?bdayErr=${code}`);
+  revalidatePath("/", "layout");
+  redirect("/settings?bday=1");
 }
 
 /* ── ตัวละคร ── */

@@ -9,7 +9,13 @@ import { checkins, coupleMembers, couples, events, listItems, lists, milestones,
 import { newId, newInviteCode } from "../ids";
 import { isThemeId } from "../themes";
 import { notifyPartner } from "../notify";
+import { normalizeRemindBefore, remindBeforeLabel, type RemindBefore } from "../reminders";
+import { listBirthdays } from "./birthday";
+import { earnTreatForItem, recordActivity, recordActivityOnce } from "./pet";
 import { addDays, daysBetween, DEFAULT_TZ, isoToLocalYmd, localToIso, todayIn } from "../time";
+
+export * from "./birthday";
+export * from "./pet";
 
 export type Actor = { userId: string; coupleId: string; tz?: string };
 
@@ -109,18 +115,38 @@ export const EventInput = z.object({
   endTime: hm.optional().describe("เวลาสิ้นสุด HH:MM"),
   location: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
+  // "" = ใช้ค่าเริ่มต้น (ฟอร์มส่งค่าว่างมาได้)
+  remindBefore: z
+    .string()
+    .regex(/^(none|d([1-9]|[12]\d|30)|h(2|3|6|12))?$/, "ค่าการเตือนไม่ถูกต้อง")
+    .optional()
+    .describe(
+      "เตือนล่วงหน้า: d1 (ค่าเริ่มต้น = 1 วันก่อน 09:00), d2, d3, d7, dN (N≤30, เวลา 09:00), h2/h3/h6/h12 (ชั่วโมงก่อนนัด เฉพาะนัดที่มีเวลา), none = ไม่เตือนล่วงหน้า · เลือกเวลาที่ผ่านไปแล้วไม่ได้",
+    ),
 });
+
+/** ข้อความ error ของ createEvent (หน้าเว็บใช้เป็น whitelist ก่อนแสดงผู้ใช้) */
+export const EVENT_ERRORS = {
+  endBeforeStart: "วันสิ้นสุดต้องไม่ก่อนวันเริ่ม",
+  tooLong: "นัดหนึ่งยาวได้ไม่เกิน 1 ปี",
+  endBeforeStartTime: "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม",
+  invalid: "ข้อมูลนัดไม่ถูกต้อง",
+} as const;
 
 /** จำนวนวันสูงสุดที่นัดหนึ่งครอบคลุมได้ (กันพิมพ์ปีผิด) */
 const MAX_EVENT_DAYS = 366;
 
-export async function createEvent(db: DB, a: Actor, raw: z.input<typeof EventInput>) {
+export async function createEvent(
+  db: DB,
+  a: Actor,
+  raw: z.input<typeof EventInput>,
+): Promise<{ id: string; remindBefore: RemindBefore; remindBeforeLabel: string }> {
   const input = EventInput.parse(raw);
   const tz = tzOf(a);
   const allDay = !input.time && !input.endTime;
   const endDate = input.endDate || input.date;
-  if (endDate < input.date) throw new Error("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม");
-  if (daysBetween(input.date, endDate) > MAX_EVENT_DAYS) throw new Error("นัดหนึ่งยาวได้ไม่เกิน 1 ปี");
+  if (endDate < input.date) throw new Error(EVENT_ERRORS.endBeforeStart);
+  if (daysBetween(input.date, endDate) > MAX_EVENT_DAYS) throw new Error(EVENT_ERRORS.tooLong);
   const startAt = localToIso(input.date, allDay ? "00:00" : (input.time ?? "00:00"), tz);
   // นัดทั้งวัน: จบท้ายวันสุดท้าย · มีเวลา: ใช้เวลาสิ้นสุดที่ระบุ (ถ้าข้ามวันแต่ไม่ระบุเวลา = ท้ายวันสุดท้าย)
   const endAt = allDay
@@ -130,7 +156,10 @@ export async function createEvent(db: DB, a: Actor, raw: z.input<typeof EventInp
       : endDate !== input.date
         ? localToIso(endDate, "23:59", tz)
         : null;
-  if (endAt && endAt < startAt) throw new Error("เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม");
+  if (endAt && endAt < startAt) throw new Error(EVENT_ERRORS.endBeforeStartTime);
+  // ตรวจด้วยเวลาเดียวกับที่บันทึก (มีแค่ endTime → เริ่ม 00:00)
+  const r = normalizeRemindBefore(input.remindBefore, { date: input.date, time: allDay ? null : (input.time ?? "00:00") }, tz);
+  if (r.error) throw new Error(r.error);
   const id = newId();
   await db.insert(events).values({
     id,
@@ -141,10 +170,12 @@ export async function createEvent(db: DB, a: Actor, raw: z.input<typeof EventInp
     allDay,
     startAt,
     endAt,
+    remindBefore: r.value,
     createdBy: a.userId,
   });
   await safeNotify(db, a, { type: "event", title: input.title, startAt, allDay });
-  return id;
+  await recordActivity(db, a, "event", { refId: id }); // ข้อความสร้างตอนอ่านจากนัดปัจจุบัน
+  return { id, remindBefore: r.value, remindBeforeLabel: remindBeforeLabel(r.value) };
 }
 
 /** นัดที่ "คาบเกี่ยว" ช่วงวันที่ (รวมนัดหลายวันที่เริ่มก่อนช่วงแต่ยังไม่จบ) */
@@ -232,11 +263,25 @@ export async function addListItem(db: DB, a: Actor, input: { list: string; text:
   });
   if (input.assigneeId && input.assigneeId !== a.userId) {
     await safeNotify(db, a, { type: "assigned", assigneeId: input.assigneeId, text: input.text.trim().slice(0, 80), listName: list.name });
+    await recordActivity(db, a, "assign", { refId: id });
   }
   return { id, listName: list.name };
 }
 
 export async function setListItemDone(db: DB, a: Actor, id: string, done: boolean) {
+  if (done) {
+    // ห้องของน้อง: UPDATE แบบมีเงื่อนไข (done = 0) → มีคำขอเดียวที่ "ชนะ" การเปลี่ยนเป็นเสร็จ จึงได้ขนม (ครั้งเดียวต่อรายการ)
+    const won = await db
+      .update(listItems)
+      .set({ done: true, doneAt: new Date().toISOString() })
+      .where(and(eq(listItems.id, id), eq(listItems.coupleId, a.coupleId), eq(listItems.done, false)))
+      .returning({ id: listItems.id, text: listItems.text });
+    if (won.length) {
+      await earnTreatForItem(db, a, id);
+      return won[0];
+    }
+  }
+  // เดิม: เสร็จอยู่แล้ว (อัปเดต doneAt เหมือนเดิม) / ยกเลิกเสร็จ / ไม่พบ
   const res = await db
     .update(listItems)
     .set({ done, doneAt: done ? new Date().toISOString() : null })
@@ -285,7 +330,10 @@ export async function submitCheckin(db: DB, a: Actor, raw: z.input<typeof Checki
     .insert(checkins)
     .values({ id: newId(), coupleId: a.coupleId, userId: a.userId, date, ...values })
     .onConflictDoUpdate({ target: [checkins.userId, checkins.date], set: values });
-  if (!existed) await safeNotify(db, a, { type: "checkin", date }); // แจ้งเฉพาะครั้งแรกของวัน ไม่แจ้งตอนแก้ไข
+  if (!existed) {
+    await safeNotify(db, a, { type: "checkin", date }); // แจ้งเฉพาะครั้งแรกของวัน ไม่แจ้งตอนแก้ไข
+    await recordActivity(db, a, "checkin", { refId: date }); // ไม่เก็บเนื้อหา — สร้างตอนอ่านตามกฎซ่อนเช็กอิน
+  }
   return date;
 }
 
@@ -378,8 +426,14 @@ export async function addMilestone(db: DB, a: Actor, planId: string, title: stri
 }
 
 export async function setMilestoneDone(db: DB, a: Actor, id: string, done: boolean) {
-  const res = await db.update(milestones).set({ done }).where(and(eq(milestones.id, id), eq(milestones.coupleId, a.coupleId))).returning({ id: milestones.id });
+  const before = done ? await db.select({ done: milestones.done }).from(milestones).where(and(eq(milestones.id, id), eq(milestones.coupleId, a.coupleId))).get() : null;
+  const res = await db
+    .update(milestones)
+    .set({ done })
+    .where(and(eq(milestones.id, id), eq(milestones.coupleId, a.coupleId)))
+    .returning({ id: milestones.id, title: milestones.title });
   if (!res.length) throw new NotFoundError("ไม่พบ milestone นี้");
+  if (done && before && !before.done) await recordActivityOnce(db, a, "milestone", { refId: id });
 }
 
 /* ───────────── Notes ───────────── */
@@ -416,6 +470,7 @@ export async function saveNote(db: DB, a: Actor, input: { id?: string; title: st
   }
   const id = newId();
   await db.insert(notes).values({ id, coupleId: a.coupleId, authorId: a.userId, ...values });
+  if (values.visibility !== "private") await recordActivity(db, a, "note", { refId: id }); // ไม่เก็บชื่อ/เนื้อหา — สร้างตอนอ่าน
   return id;
 }
 
@@ -430,7 +485,7 @@ export async function deleteNote(db: DB, a: Actor, id: string) {
 export async function getSummary(db: DB, a: Actor) {
   const tz = tzOf(a);
   const today = todayIn(tz);
-  const [couple, upcoming, items, planRows, ci, streak, recentNotes] = await Promise.all([
+  const [couple, upcoming, items, planRows, ci, streak, recentNotes, birthdays] = await Promise.all([
     getCouple(db, a),
     listEvents(db, a, { from: today, to: addDays(today, 6) }),
     openItems(db, a, 8),
@@ -438,6 +493,7 @@ export async function getSummary(db: DB, a: Actor) {
     getCheckins(db, a, 7),
     checkinStreak(db, a),
     listNotes(db, a, { limit: 3 }),
+    listBirthdays(db, a, { from: today, to: addDays(today, 30) }),
   ]);
   const todayCi = ci.days[0];
   const moods = ci.days.map((d) => ({ date: d.date, mine: d.mine?.mood ?? null, partner: d.partner?.mood ?? null })).reverse();
@@ -452,6 +508,7 @@ export async function getSummary(db: DB, a: Actor) {
       moods,
     },
     upcomingEvents: upcoming,
+    birthdays,
     openItems: items,
     activePlans: planRows.filter((p) => p.status !== "done").slice(0, 4),
     recentNotes: recentNotes.map((n) => ({ id: n.id, title: n.title, updatedAt: n.updatedAt, visibility: n.visibility })),

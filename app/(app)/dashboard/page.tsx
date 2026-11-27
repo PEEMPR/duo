@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarHeart, CheckCircle2, Circle, Flame, HeartPulse, NotebookPen, Target } from "lucide-react";
+import { ArrowRight, Cake, CalendarHeart, CheckCircle2, Circle, Flame, HeartPulse, NotebookPen, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +68,23 @@ export default async function Dashboard() {
             <Link href="/calendar" className="text-muted-foreground hover:text-foreground"><ArrowRight className="size-4" /></Link>
           </CardHeader>
           <CardContent>
+            {s.birthdays.length > 0 && (
+              <div className="mb-3 flex flex-col gap-1.5 border-b pb-3">
+              <p className="text-xs font-medium text-muted-foreground">🎂 วันเกิดที่กำลังมา (30 วัน)</p>
+              <ul className="flex flex-col gap-1">
+                {s.birthdays.map((b) => {
+                  const n = daysBetween(s.today, b.date);
+                  return (
+                    <li key={b.userId} className="flex items-center gap-2 rounded-lg bg-pink-100/60 px-3 py-2 text-sm dark:bg-pink-500/10">
+                      <Cake className="size-4 shrink-0 text-pink-600 dark:text-pink-300" role="img" aria-label="วันเกิด" />
+                      <span className="min-w-0 truncate">🎂 วันเกิด {b.name}{b.isMe ? " (ฉัน)" : ""} · {formatDateTh(b.date, { day: "numeric", month: "short" })}</span>
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">{n <= 0 ? "วันนี้!" : `อีก ${n} วัน`}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              </div>
+            )}
             {s.upcomingEvents.length === 0 ? (
               <Empty text="ยังไม่มีนัด ลองวางแผนเดตกันไหม?" href="/calendar" cta="เพิ่มนัด" />
             ) : (
