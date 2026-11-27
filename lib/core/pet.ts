@@ -13,6 +13,7 @@ import { and, asc, desc, eq, gte, inArray, lt, or, sql, type AnyColumn } from "d
 import type { DB } from "../db";
 import { activityFeed, checkins, coupleMembers, couples, events, listItems, milestones, notes, petSeen, users } from "../db/schema";
 import { newId } from "../ids";
+import { notifyPartner } from "../notify";
 import { pokeRoom } from "../realtime/poke";
 import { addDays, cachedDtf, dayRangeIso, DEFAULT_TZ, formatDateTh, formatTime, isoToLocalYmd, todayIn } from "../time";
 import type { Actor } from "./index";
@@ -290,6 +291,15 @@ export async function setRoom(db: DB, a: Actor, room: RoomId): Promise<void> {
   await safePoke(a.coupleId, "room");
 }
 
+/** แจ้งอีกฝ่ายว่ากอด/คิดถึง/ป้อนขนม · ไม่ให้ข้อผิดพลาดของแจ้งเตือนทำให้แอคชันล้มเหลว */
+async function notifyPet(db: DB, a: Actor, action: "hug" | "miss" | "treat") {
+  try {
+    await notifyPartner(db, a.userId, tzOf(a), { type: "pet", action });
+  } catch (err) {
+    console.warn("[pet] notify skipped:", (err as Error).message);
+  }
+}
+
 /** กอด/คิดถึง: INSERT แบบมีเงื่อนไขคำสั่งเดียว (ไม่มี race) · ไม่มีแถวใหม่ = ยังไม่ครบ 60 วิ */
 async function sendRateLimited(db: DB, a: Actor, kind: "hug" | "miss"): Promise<{ ok: true } | { ok: false; retryAfter: number }> {
   const now = Date.now();
@@ -306,6 +316,7 @@ async function sendRateLimited(db: DB, a: Actor, kind: "hug" | "miss"): Promise<
     returning id`);
   if (inserted.length) {
     await safePoke(a.coupleId, "activity");
+    await notifyPet(db, a, kind);
     return { ok: true };
   }
   const last = await db
@@ -338,6 +349,7 @@ export async function feedTreat(db: DB, a: Actor, target: "me" | "partner"): Pro
     .returning({ treats: users.treats });
   if (!res.length) return { ok: false, treats: await treatsOf(db, a.userId) };
   await recordActivity(db, a, "treat", { text: activityText.treat(target), meta: { target } });
+  if (target === "partner") await notifyPet(db, a, "treat");
   return { ok: true, treats: res[0].treats };
 }
 

@@ -25,6 +25,7 @@ export const NOTIFY_KINDS = [
   { id: "event_tomorrow", label: "สรุปนัดของพรุ่งนี้ตอน 20:00" },
   { id: "anniversary", label: "วันครบรอบ (ล่วงหน้า 7 วัน และวันจริง)" },
   { id: "birthday", label: "เตือนวันเกิด (1 วันก่อน 09:00)" },
+  { id: "pet", label: "กอด / คิดถึง / ป้อนขนมจากอีกฝ่าย" },
 ] as const;
 export type NotifyKind = (typeof NOTIFY_KINDS)[number]["id"];
 export type NotifyPrefs = Record<NotifyKind, boolean>;
@@ -104,6 +105,12 @@ async function partnerOf(db: DB, actorId: string) {
 const iconFor = (character: string | null) => (characterOf(character) ? `/characters/${character}.png` : "/icon-192.png");
 const voice = (u: { name: string; character: string | null }) => `${characterOf(u.character)?.emoji ?? "💞"} ${u.name}`;
 
+const PET_MSG = {
+  hug: { title: "ส่งกอดมา 🤗", short: "ส่งกอด" },
+  miss: { title: "คิดถึงเธอ 💗", short: "คิดถึง" },
+  treat: { title: "ป้อนขนมให้น้องของเธอ 🍪", short: "ป้อนขนม" },
+} as const;
+
 /**
  * แจ้งอีกฝ่ายเมื่อเราทำแอคชัน (เรียกจาก lib/core ทั้งจากเว็บและ MCP)
  * ไม่ใส่เนื้อหาเช็กอิน/ข้อความส่วนตัวลงแจ้งเตือน เพราะอาจโชว์บนหน้าล็อก
@@ -115,7 +122,8 @@ export async function notifyPartner(
   e:
     | { type: "checkin"; date: string }
     | { type: "assigned"; assigneeId: string; text: string; listName: string }
-    | { type: "event"; title: string; startAt: string; allDay: boolean },
+    | { type: "event"; title: string; startAt: string; allDay: boolean }
+    | { type: "pet"; action: "hug" | "miss" | "treat" },
 ) {
   const pair = await partnerOf(db, actorId);
   if (!pair) return;
@@ -162,6 +170,21 @@ export async function notifyPartner(
       { kind: "new_event", title: `${voice(me)} เพิ่มนัดใหม่ 📅`, body: `${e.title} · ${at}`, short: `นัด “${e.title}”`, url: "/calendar", icon, groupable: true },
       when,
     );
+  }
+  // ช่วงเงียบ: ไม่ส่งเลย (ไม่เลื่อนไป 07:00) — กอด/คิดถึงตอนดึกไม่ควรมาเด้งตอนเช้า
+  if (e.type === "pet" && prefs.pet && !inQuiet(localHM(tz, new Date()))) {
+    const msg = PET_MSG[e.action];
+    const title = `${voice(me)} ${msg.title}`;
+    // กันซ้ำ: ถ้ายังมีแจ้งเตือนแบบเดียวกันรอส่งอยู่ (ยังไม่ถึงเวลา/ยังไม่ส่ง) ไม่ใส่คิวเพิ่ม → กอดรัวๆ ในนาทีเดียวได้ 1 push
+    const pending = await db
+      .select({ id: notificationOutbox.id })
+      .from(notificationOutbox)
+      .where(and(eq(notificationOutbox.userId, partner.id), eq(notificationOutbox.kind, "pet"), eq(notificationOutbox.title, title), isNull(notificationOutbox.sentAt)))
+      .limit(1)
+      .get();
+    if (!pending) {
+      await enqueue(db, partner.id, { kind: "pet", title, body: "แตะเพื่อดูในห้องของน้อง", short: msg.short, url: "/room", icon, groupable: true }, when);
+    }
   }
 }
 

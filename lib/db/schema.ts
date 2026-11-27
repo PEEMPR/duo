@@ -18,6 +18,7 @@ export const users = sqliteTable("users", {
   treatsDay: text("treats_day"),
   treatsToday: integer("treats_today").notNull().default(0),
   petRest: integer("pet_rest", { mode: "boolean" }).notNull().default(false), // โหมดพัก: น้องไม่เศร้า/ไม่ขดตัวถ้าไม่ได้เช็กอินนาน
+  petCorner: integer("pet_corner", { mode: "boolean" }).notNull().default(true), // โชว์น้องตัวเล็กมุมจอ (ปิดได้ในตั้งค่า)
   createdAt: text("created_at").notNull().default(now),
 });
 

@@ -43,6 +43,13 @@
       "when": 1795688806816,
       "tag": "0005_pet_room",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795746540797,
+      "tag": "0006_pet_corner",
+      "breakpoints": true
     }
   ]
 }

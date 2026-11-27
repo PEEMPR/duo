@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Palette } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { RoomId, RoomPet, RoomQueueItem, RoomState } from "@/lib/core/pet";
 import { getRoomStateAction, markSeenAction, setRoomAction } from "@/app/(app)/room/actions";
 import { useRoomSocket } from "@/lib/realtime/client";
@@ -138,6 +139,87 @@ function PetButton({
   );
 }
 
+/** ปุ่มเลือกห้องเล็กๆ มุมขวาบนของฉาก → popover รายชื่อห้อง */
+function RoomPicker({ room, onPick }: { room: RoomId; onPick: (r: RoomId) => void }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        btn.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div
+      ref={wrap}
+      className="absolute top-[2%] right-[2%] z-20"
+      onBlur={(e) => {
+        // relatedTarget=null (Safari ไม่โฟกัสปุ่มตอนคลิก) ปล่อยให้ pointerdown-outside จัดการ
+        if (open && e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <button
+        ref={btn}
+        type="button"
+        aria-label={`เปลี่ยนห้อง (${ROOM_META[room].label})`}
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((o) => !o)}
+        className="flex size-11 items-center justify-center rounded-full border bg-background/80 text-foreground shadow-sm backdrop-blur outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Palette className="size-5" aria-hidden />
+      </button>
+      {open && (
+        <div id={menuId} role="group" aria-label="เลือกห้อง" className="absolute top-12 right-0 flex w-44 flex-col gap-0.5 rounded-2xl border bg-popover p-1.5 text-popover-foreground shadow-lg">
+          {ROOMS.map((id) => {
+            const meta = ROOM_META[id];
+            const selected = room === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  onPick(id);
+                  setOpen(false);
+                  btn.current?.focus();
+                }}
+                className={cn(
+                  "flex min-h-11 items-center gap-2.5 rounded-xl px-2 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                  selected && "bg-accent font-medium",
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn("size-6 shrink-0 rounded-full border", selected && "ring-2 ring-primary ring-offset-1 ring-offset-background")}
+                  style={{ background: `linear-gradient(135deg, ${meta.swatch[0]}, ${meta.swatch[1]})` }}
+                />
+                <span className="flex-1 text-left">{meta.label}</span>
+                {selected && <span aria-hidden className="text-primary">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) {
   const reduced = useReducedMotion();
   const localSeen = useRef(new Set<string>());
@@ -246,12 +328,16 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
   );
 
   // หน้า server render ใหม่ (เช่น router.refresh) → รับค่าใหม่
-  const firstInitial = useRef(true);
+  // (เทียบเนื้อหา: หน้าปฏิทินเปลี่ยน ?month= แล้ว server ส่ง initial ก้อนใหม่ที่เหมือนเดิม → ไม่ต้อง apply)
+  const lastInitialSig = useRef<string | null>(null);
   useEffect(() => {
-    if (firstInitial.current) {
-      firstInitial.current = false;
+    const sig = JSON.stringify(initial);
+    if (lastInitialSig.current === null) {
+      lastInitialSig.current = sig;
       return;
     }
+    if (sig === lastInitialSig.current) return;
+    lastInitialSig.current = sig;
     apply(initial);
   }, [initial, apply]);
 
@@ -384,7 +470,8 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ฉาก 390:520 */}
+      {/* ฉาก 390:520 · wrapper ไม่ clip เพื่อให้ popover เลือกห้องล้นออกได้ */}
+      <div className="relative">
       <div className="relative aspect-[390/520] w-full overflow-hidden rounded-3xl border bg-card shadow-sm">
         <div className="absolute inset-0" aria-hidden>
           <RoomScene room={state.room} />
@@ -434,6 +521,8 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
           </div>
         )}
       </div>
+      <RoomPicker room={state.room} onPick={pickRoom} />
+      </div>
 
       {/* สถานะอีกฝ่าย */}
       {!partner ? (
@@ -446,28 +535,6 @@ export function RoomClient({ initial, tz }: { initial: RoomState; tz: string }) 
         <p className="text-center text-sm text-muted-foreground">วันนี้ {partnerName} ยังไม่ได้แวะมา</p>
       ) : null}
 
-      {/* เลือกห้อง */}
-      <div role="group" aria-label="เลือกห้อง" className="flex items-center justify-center gap-3">
-        {ROOMS.map((id) => {
-          const meta = ROOM_META[id];
-          const selected = state.room === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              aria-label={meta.label}
-              aria-pressed={selected}
-              title={meta.label}
-              onClick={() => pickRoom(id)}
-              className={cn(
-                "size-10 rounded-full border shadow-sm transition-transform outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-              )}
-              style={{ background: `linear-gradient(135deg, ${meta.swatch[0]}, ${meta.swatch[1]})` }}
-            />
-          );
-        })}
-      </div>
       {roomError && (
         <p role="alert" className="-mt-2 text-center text-xs text-destructive">
           เปลี่ยนห้องไม่สำเร็จ ลองอีกครั้งนะ

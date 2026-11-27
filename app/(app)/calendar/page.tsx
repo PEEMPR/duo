@@ -11,9 +11,10 @@ import { SubmitButton } from "@/components/submit-button";
 import { ReminderSelect } from "@/components/reminder-select";
 import { REMINDER_ERRORS } from "@/lib/reminders";
 import { createEventAction, deleteEventAction } from "@/app/actions";
-import { EVENT_ERRORS, eventDays, listBirthdays, listEvents } from "@/lib/core";
+import { EVENT_ERRORS, eventDays, getRoomState, listBirthdays, listEvents } from "@/lib/core";
+import { RoomClient } from "@/components/pet/room-client";
 import { appTz, db, requireActor } from "@/lib/server";
-import { addDays, formatDateTh, formatEventRange, todayIn } from "@/lib/time";
+import { DEFAULT_TZ, addDays, formatDateTh, formatEventRange, todayIn } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 const KNOWN_ERRORS: ReadonlySet<string> = new Set([...Object.values(EVENT_ERRORS), ...Object.values(REMINDER_ERRORS)]);
@@ -38,7 +39,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const startOffset = new Date(`${first}T00:00:00Z`).getUTCDay();
   const gridStart = addDays(first, -startOffset);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const [evts, birthdays] = await Promise.all([
+  const [room, evts, birthdays] = await Promise.all([
+    getRoomState(db(), actor).catch(() => null),
     listEvents(db(), actor, { from: cells[0], to: cells[41] }),
     listBirthdays(db(), actor, { from: cells[0], to: cells[41] }),
   ]);
@@ -53,15 +55,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   return (
     <div>
+      {room && (
+        <section aria-label="ห้องของน้อง" className="mx-auto mb-6 w-full max-w-[480px]">
+          <RoomClient initial={room} tz={actor.tz || DEFAULT_TZ} />
+        </section>
+      )}
       <PageHeader title="ปฏิทินของเรา" description="นัดหมายและวันสำคัญร่วมกัน" />
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+      <div id="cal" className="grid scroll-mt-4 gap-5 lg:grid-cols-[1fr_340px]">
         <Card className="gap-3">
           <CardHeader className="items-center">
             <CardTitle className="text-lg">{formatDateTh(first, { month: "long", year: "numeric" })}</CardTitle>
             <div className="flex gap-1">
-              <Button asChild variant="ghost" size="icon"><Link href={`/calendar?m=${monthShift(month, -1)}&d=${selected}`} aria-label="เดือนก่อน"><ChevronLeft /></Link></Button>
-              <Button asChild variant="outline" size="sm"><Link href={`/calendar?d=${today}`}>วันนี้</Link></Button>
-              <Button asChild variant="ghost" size="icon"><Link href={`/calendar?m=${monthShift(month, 1)}&d=${selected}`} aria-label="เดือนถัดไป"><ChevronRight /></Link></Button>
+              <Button asChild variant="ghost" size="icon"><Link scroll={false} href={`/calendar?m=${monthShift(month, -1)}&d=${selected}`} aria-label="เดือนก่อน"><ChevronLeft /></Link></Button>
+              <Button asChild variant="outline" size="sm"><Link scroll={false} href={`/calendar?d=${today}`}>วันนี้</Link></Button>
+              <Button asChild variant="ghost" size="icon"><Link scroll={false} href={`/calendar?m=${monthShift(month, 1)}&d=${selected}`} aria-label="เดือนถัดไป"><ChevronRight /></Link></Button>
             </div>
           </CardHeader>
           <CardContent className="px-2 sm:px-5">
@@ -76,6 +83,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 return (
                   <Link
                     key={d}
+                    scroll={false}
                     href={`/calendar?m=${month}&d=${d}`}
                     className={cn(
                       "flex min-h-14 flex-col rounded-lg border border-transparent p-1 text-xs transition-colors hover:bg-accent sm:min-h-20",
@@ -133,7 +141,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <Card>
             <CardHeader><CardTitle>เพิ่มนัด</CardTitle></CardHeader>
             <CardContent>
-              <form action={createEventAction} className="flex flex-col gap-3">
+              <form id="cal-form" action={createEventAction} className="flex scroll-mt-4 flex-col gap-3">
                 {sp.err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{KNOWN_ERRORS.has(sp.err) ? sp.err : FALLBACK_ERROR}</p>}
                 <div className="flex flex-col gap-2"><Label htmlFor="title">ชื่อนัด</Label><Input id="title" name="title" required placeholder="เช่น ดินเนอร์ครบรอบ" /></div>
                 <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">

@@ -3,7 +3,7 @@
   "short_name": "Duo",
   "description": "ปฏิทิน รายการ เช็กอินประจำวัน และแผนของคู่รัก",
   "lang": "th",
-  "start_url": "/dashboard",
+  "start_url": "/calendar",
   "scope": "/",
   "display": "standalone",
   "background_color": "#fdf7f7",

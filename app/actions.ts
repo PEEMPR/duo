@@ -24,7 +24,7 @@ const opt = (f: FormData, k: string) => str(f, k) || undefined;
 
 /** รับเฉพาะ path ภายในเว็บ กัน open redirect */
 function safeNext(v: string | undefined) {
-  return v && v.startsWith("/") && !v.startsWith("//") ? v : "/dashboard";
+  return v && /^\/(?![\\/])/.test(v) && !v.includes("\\") ? v : "/calendar";
 }
 
 async function setSessionCookie(userId: string) {
@@ -46,7 +46,7 @@ export async function signupAction(_: FormState, f: FormData): Promise<FormState
   }
   const next = safeNext(opt(f, "next"));
   if (isExternalRoute(next)) return { hardRedirect: next };
-  redirect(next === "/dashboard" ? "/onboarding" : next);
+  redirect(next === "/calendar" ? "/onboarding" : next);
 }
 
 export async function loginAction(_: FormState, f: FormData): Promise<FormState> {
@@ -71,7 +71,7 @@ export async function logoutAction() {
 export async function createCoupleAction(_: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   await core.createCouple(db(), user.id, { name: str(f, "name"), anniversary: opt(f, "anniversary") });
-  redirect("/dashboard");
+  redirect("/calendar");
 }
 
 export async function joinCoupleAction(_: FormState, f: FormData): Promise<FormState> {
@@ -81,7 +81,7 @@ export async function joinCoupleAction(_: FormState, f: FormData): Promise<FormS
   } catch (e) {
     return { error: (e as Error).message };
   }
-  redirect("/dashboard");
+  redirect("/calendar");
 }
 
 export async function updateCoupleAction(f: FormData) {
@@ -120,9 +120,9 @@ export async function createEventAction(f: FormData) {
     });
   } catch (e) {
     const msg = e instanceof Error && !("issues" in e) ? e.message : "ข้อมูลนัดไม่ถูกต้อง";
-    redirect(`/calendar?d=${encodeURIComponent(date)}&err=${encodeURIComponent(msg)}`);
+    redirect(`/calendar?d=${encodeURIComponent(date)}&err=${encodeURIComponent(msg)}#cal-form`);
   }
-  redirect(`/calendar?d=${date}`);
+  redirect(`/calendar?d=${encodeURIComponent(date)}#cal`);
 }
 
 export async function deleteEventAction(f: FormData) {
@@ -289,6 +289,14 @@ export async function setCharacterAction(f: FormData) {
   const c = str(f, "character");
   if (isCharacterId(c)) await db().update(users).set({ character: c }).where(eq(users.id, user.id));
   revalidatePath("/", "layout");
+}
+
+export async function updatePetSettingsAction(f: FormData) {
+  const { actor } = await requireActor();
+  await db().update(users).set({ petCorner: f.get("petCorner") === "on" }).where(eq(users.id, actor.userId));
+  await core.setPetRest(db(), actor.userId, f.get("petRest") === "on");
+  revalidatePath("/", "layout");
+  redirect("/settings?pet=1");
 }
 
 /* ── แจ้งเตือน (Web Push) ── */

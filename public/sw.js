@@ -49,14 +49,14 @@ self.addEventListener("push", (event) => {
       badge: "/icon-192.png",
       tag: data.tag || undefined,
       renotify: !!data.tag,
-      data: { url: data.url || "/dashboard" },
+      data: { url: data.url || "/calendar" },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL((event.notification.data && event.notification.data.url) || "/dashboard", self.location.origin).href;
+  const target = new URL((event.notification.data && event.notification.data.url) || "/calendar", self.location.origin).href;
   event.waitUntil(
     (async () => {
       const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

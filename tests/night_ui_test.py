@@ -25,11 +25,11 @@ with sync_playwright() as p:
     A = b.new_context(locale="th-TH"); a = A.new_page(); hook(a, "A")
     signup(a, "AA", EA)
     a.fill("#name", "Night Test"); a.fill("#anniversary", "2023-02-14")
-    a.locator("form").first.locator("button[type=submit]").click(); a.wait_for_url(re.compile(r"/dashboard"))
+    a.locator("form").first.locator("button[type=submit]").click(); a.wait_for_url(re.compile(r"/calendar"))
     a.goto(f"{BASE}/settings"); code = a.locator("code.font-mono").first.inner_text().strip()
     B = b.new_context(locale="th-TH"); m = B.new_page(); hook(m, "B")
     signup(m, "BB", EB); m.locator("#code").fill(code)
-    m.locator("form").nth(1).locator("button[type=submit]").click(); m.wait_for_url(re.compile(r"/dashboard"))
+    m.locator("form").nth(1).locator("button[type=submit]").click(); m.wait_for_url(re.compile(r"/calendar"))
     chk("1 signup+couple+join", True, f"code={code}, A={EA}, B={EB}")
 
     # 2 theme
@@ -76,8 +76,8 @@ with sync_playwright() as p:
     def login(email):
         a.goto(f"{BASE}/login"); a.fill("#email", email); a.fill("#password", PW); a.click("button[type=submit]"); a.wait_for_load_state("networkidle"); time.sleep(0.8)
         return a.url, a.locator("body").inner_text()[:200].replace("\n", " ")
-    u, bt = login(EA); chk("3f old email fails", "/dashboard" not in u, (u, bt))
-    u, bt = login(NEW.lower()); chk("3f new email ok", "/dashboard" in u, u)
+    u, bt = login(EA); chk("3f old email fails", "/calendar" not in u, (u, bt))
+    u, bt = login(NEW.lower()); chk("3f new email ok", "/calendar" in u, u)
 
     # 4
     for q in ["<script>alert(1)</script>", "hello"]:

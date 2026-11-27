@@ -16,7 +16,7 @@ const FEATURES = [
 
 export default async function Home() {
   const user = await currentUser();
-  if (user) redirect(user.coupleId ? "/dashboard" : "/onboarding");
+  if (user) redirect(user.coupleId ? "/calendar" : "/onboarding");
   return (
     <main className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-10 px-6 py-16">
       <div className="flex flex-col gap-4">

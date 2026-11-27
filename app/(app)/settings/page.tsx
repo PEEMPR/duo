@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { changeEmailAction, updateBirthdayAction, logoutAction, regenerateInviteAction, setCharacterAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
+import { changeEmailAction, updateBirthdayAction, logoutAction, regenerateInviteAction, setCharacterAction, updatePetSettingsAction, updateCoupleAction, updateNameAction, updateNotifyPrefsAction, updateThemeAction } from "@/app/actions";
 import { PushSetup } from "@/components/push-setup";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { EmailChangeError } from "@/lib/auth";
@@ -35,14 +35,18 @@ const BDAY_ERR_TEXT: Record<string, string> = {
   fail: "บันทึกวันเกิดไม่สำเร็จ ลองใหม่อีกครั้ง",
 };
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ emailErr?: string; email?: string; bdayErr?: string; bday?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ emailErr?: string; email?: string; bdayErr?: string; bday?: string; pet?: string }> }) {
   const { actor, user } = await requireActor();
   const sp = await searchParams;
   const emailErr = Object.hasOwn(EMAIL_ERR_TEXT, sp.emailErr ?? "") ? EMAIL_ERR_TEXT[sp.emailErr as EmailChangeError] : null;
   const bdayErr = Object.hasOwn(BDAY_ERR_TEXT, sp.bdayErr ?? "") ? BDAY_ERR_TEXT[sp.bdayErr as string] : null;
   const myBday = await getMyBirthday(db(), user.id);
   const couple = await getCouple(db(), actor);
-  const me = (await db().select({ character: users.character, prefs: users.notifyPrefs, reminderAt: users.checkinReminderTime }).from(users).where(eq(users.id, user.id)).get())!;
+  const me = (await db()
+    .select({ character: users.character, prefs: users.notifyPrefs, reminderAt: users.checkinReminderTime, petCorner: users.petCorner, petRest: users.petRest })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .get())!;
   const prefs = parsePrefs(me.prefs);
   const vapidPublicKey = (env as { VAPID_PUBLIC_KEY?: string }).VAPID_PUBLIC_KEY ?? null;
   const h = await headers();
@@ -130,6 +134,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   </button>
                 );
               })}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader className="flex-col">
+            <CardTitle><PawPrint className="size-4 text-primary" /> ตัวละคร / น้อง</CardTitle>
+            <CardDescription>น้องตัวเล็กของเราในห้อง และโหมดพักเมื่อไม่ได้เช็กอิน</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={updatePetSettingsAction} className="flex flex-col gap-3">
+              {sp.pet === "1" && <p className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> บันทึกแล้ว</p>}
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="petCorner" defaultChecked={me.petCorner} className="mt-0.5 size-4 accent-primary" />
+                <span>โชว์น้องตัวเล็กมุมจอ</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="petRest" defaultChecked={me.petRest} className="mt-0.5 size-4 accent-primary" />
+                <span>โหมดพัก (เดินทาง/ป่วย): น้องไม่เศร้าถ้าไม่ได้เช็กอินหลายวัน</span>
+              </label>
+              <SubmitButton variant="secondary" size="sm" className="self-start">บันทึก</SubmitButton>
             </form>
           </CardContent>
         </Card>

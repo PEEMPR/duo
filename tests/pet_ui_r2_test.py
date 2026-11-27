@@ -24,10 +24,10 @@ def signup(page, name, email):
     page.click("button[type=submit]"); page.wait_for_url(re.compile(r"/onboarding"))
 def create_couple(page, name):
     page.fill("#name", name); page.fill("#anniversary", "2023-02-14")
-    page.locator("form").first.locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/dashboard"))
+    page.locator("form").first.locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/calendar"))
     page.goto(f"{BASE}/settings"); return page.locator("code.font-mono").first.inner_text().strip()
 def join(page, code):
-    page.locator("#code").fill(code); page.locator("form").nth(1).locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/dashboard"))
+    page.locator("#code").fill(code); page.locator("form").nth(1).locator("button[type=submit]").click(); page.wait_for_url(re.compile(r"/calendar"))
 G = "[role=group][aria-label^='ข้อความจาก']"
 def bubble(pg): return pg.locator(G)
 def counter(pg):
@@ -242,7 +242,7 @@ with sync_playwright() as p:
     print("INFO logged-out close code:", r["code"], "(4401 exact:" , code4401, ")", flush=True)
     # logged-in page whose session disappears: simulate hide/show
     Cx = b.new_context(viewport={"width": 390, "height": 844}, locale="th-TH"); Cx.add_init_script(WSINIT)
-    c = Cx.new_page(); hook(c, "C"); c.goto(f"{BASE}/login"); c.fill("#email", EA); c.fill("#password", PW); c.click("button[type=submit]"); c.wait_for_url(re.compile("/dashboard"))
+    c = Cx.new_page(); hook(c, "C"); c.goto(f"{BASE}/login"); c.fill("#email", EA); c.fill("#password", PW); c.click("button[type=submit]"); c.wait_for_url(re.compile("/calendar"))
     c.goto(f"{BASE}/room"); c.wait_for_load_state("networkidle"); time.sleep(1.5)
     first = c.evaluate("window.__ws.map(w=>({open:w.open,code:w.code}))")
     chk("R7b logged-in A opens socket", any(w["open"] for w in first), first)
@@ -268,7 +268,7 @@ with sync_playwright() as p:
         other_ctx = a2 if who == "B" else m2
         add_event(other_ctx, f"ชวนเลย{tag}"); time.sleep(0.5)
         vx = b.new_context(viewport={"width": w, "height": h}, locale="th-TH", timezone_id="Asia/Bangkok", is_mobile=(tag == "mobile"), has_touch=(tag == "mobile")); v = vx.new_page(); hook(v, "V" + tag)
-        v.goto(f"{BASE}/login"); v.fill("#email", EB if who == "B" else EA); v.fill("#password", PW); v.click("button[type=submit]"); v.wait_for_url(re.compile("/dashboard"))
+        v.goto(f"{BASE}/login"); v.fill("#email", EB if who == "B" else EA); v.fill("#password", PW); v.click("button[type=submit]"); v.wait_for_url(re.compile("/calendar"))
         v.goto(f"{BASE}/room"); v.wait_for_load_state("networkidle")
         both = False; bm = bs = None; end = time.time() + 14
         while time.time() < end:

@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `pet_corner` integer DEFAULT true NOT NULL;

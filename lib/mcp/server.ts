@@ -149,5 +149,37 @@ export function buildMcpServer(env: { DB: D1Database; APP_TIMEZONE?: string }, p
   );
   tool("get_note", "อ่านบันทึกฉบับเต็มด้วย id", z.object({ id: z.string() }), READ, (a, i) => core.getNote(db, a, i.id));
 
+  /* ห้องของน้อง */
+  tool(
+    "send_hug",
+    "ส่งกอดให้อีกฝ่าย (น้องของเราวิ่งไปกอดน้องของเขา) จำกัด 1 ครั้งต่อนาที ถ้ายังไม่ครบจะตอบ retryAfter (วินาที)",
+    z.object({}),
+    WRITE,
+    (a) => core.sendHug(db, a),
+  );
+  tool(
+    "send_miss_you",
+    "ส่งข้อความ \"คิดถึง\" ให้อีกฝ่าย จำกัด 1 ครั้งต่อนาที ถ้ายังไม่ครบจะตอบ retryAfter (วินาที)",
+    z.object({}),
+    WRITE,
+    (a) => core.sendMiss(db, a),
+  );
+  tool(
+    "get_room",
+    "สถานะห้องของน้องวันนี้: ห้อง, อารมณ์/ท่าทางของน้องทั้งสองตัว, จำนวนขนม, กิจกรรมที่อีกฝ่ายทำวันนี้ (queue) และความทรงจำวันนี้ (เช็กอินของอีกฝ่ายจะซ่อนถ้าเรายังไม่เช็กอิน)",
+    z.object({}),
+    READ,
+    async (a) => {
+      const s = await core.getRoomState(db, a);
+      return {
+        room: s.room,
+        me: { name: s.me.name, character: s.me.character, mood: s.me.mood, pose: s.me.pose, treats: s.me.treats },
+        partner: s.partner ? { name: s.partner.name, character: s.partner.character, mood: s.partner.mood, pose: s.partner.pose, present: s.partner.present } : null,
+        queue: s.queue.map((q) => ({ kind: q.kind, text: q.text, teaser: q.teaser, at: q.at })),
+        memory: s.memory?.text ?? null,
+      };
+    },
+  );
+
   return server;
 }

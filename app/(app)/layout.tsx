@@ -1,8 +1,10 @@
 import { eq } from "drizzle-orm";
 import { Heart } from "lucide-react";
 import { BottomNav, MobileHeaderLinks, SideNav } from "@/components/app-nav";
+import { PetCorner } from "@/components/pet/corner";
 import { getCouple } from "@/lib/core";
-import { couples } from "@/lib/db/schema";
+import { hasNewForViewer } from "@/lib/core/pet-corner";
+import { couples, users } from "@/lib/db/schema";
 import { db, requireActor } from "@/lib/server";
 import type { Viewport } from "next";
 import { THEMES, isThemeId } from "@/lib/themes";
@@ -20,7 +22,13 @@ export async function generateViewport(): Promise<Viewport> {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { actor } = await requireActor();
-  const couple = await getCouple(db(), actor);
+  const [couple, me, hasNewRaw] = await Promise.all([
+    getCouple(db(), actor),
+    db().select({ character: users.character, petCorner: users.petCorner }).from(users).where(eq(users.id, actor.userId)).get(),
+    hasNewForViewer(db(), actor).catch(() => false),
+  ]);
+  const petCorner = me?.petCorner ?? true;
+  const hasNew = petCorner && hasNewRaw;
   const theme = isThemeId(couple.theme) ? couple.theme : "rose";
   return (
     <div className={`theme-${theme} flex min-h-dvh bg-background text-foreground`} data-theme-preset={theme}>
@@ -37,9 +45,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="truncate font-semibold">{couple.name}</span>
           <MobileHeaderLinks />
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-8 md:pt-8 md:pb-10">{children}</main>
+        <main className={`mx-auto w-full max-w-5xl flex-1 px-4 pt-5 md:px-8 md:pt-8 ${petCorner ? "pb-40 md:pb-24" : "pb-28 md:pb-10"}`}>{children}</main>
       </div>
       <BottomNav />
+      <PetCorner character={me?.character ?? null} enabled={petCorner} hasNew={hasNew} />
     </div>
   );
 }
